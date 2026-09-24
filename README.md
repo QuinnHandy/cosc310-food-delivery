@@ -3,7 +3,7 @@ Team 11
 
 
 
-## Requirments: 
+## Requirements: 
     Python 3.13 or newer
     Git
 
