@@ -1,5 +1,7 @@
 # Team Agreement
 
+# Version 1 - Sept 24
+
 ## Part 1 — Team Information
 Team Name: Team 11
 Team Members: Quinn Handy, Asher Nathan, Timo Clement, Samuel Mwanduka
