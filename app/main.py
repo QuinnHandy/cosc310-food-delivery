@@ -14,6 +14,9 @@ def root():
 def health():
     return {"status": "ok"}
 
+# Command to run:
+# uvicorn app.main:app --reload
+# http://127.0.0.1:8000/restaurants
 @app.get("/restaurants", response_model=list[Restaurant])
 def get_restaurants():
     return [
