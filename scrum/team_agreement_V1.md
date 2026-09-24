@@ -1,5 +1,7 @@
 # Team Agreement
 
+# Version 1 - Sept 24
+
 ## Part 1 — Team Information
 Team Name: Team 11
 Team Members: Quinn Handy, Asher Nathan, Timo Clement, Samuel Mwanduka
@@ -52,7 +54,8 @@ Unequal contributions — tasks are assigned by name in the group chat at each m
 Poor communication — the 24-hour response rule and the "post it in the group chat" rule keep everyone on the same page.
 Disagreements — we use the decision-making and conflict resolution steps above instead of letting issues build up.
 Crunch periods — during midterms and finals we will plan lighter workloads and shift work to weeks with fewer exams.
-10. Individual Commitments
+10. Revisions. We review this agreement at our weekly meeting. Any change must be agreed by all four members, gets a new version number (V2, V3, …), and is recorded in the change log below with the date and what changed.
+11. Individual Commitments
 Each member commits to the following:
 Quinn: I commit to completing my assigned work by our internal deadlines, attending our weekly meetings, responding to messages within 24 hours, and raising concerns early rather than waiting until a deadline is at risk.
 Asher: I commit to completing my assigned work by our internal deadlines, attending our weekly meetings, responding to messages within 24 hours, and raising concerns early rather than waiting until a deadline is at risk.
