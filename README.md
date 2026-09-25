@@ -63,3 +63,24 @@ data/              # Sample JSON data
 tests/             # pytest test suite
 scrum/             # Team agreement
 ```
+
+## Running tests
+Ensure that pytest is installed locally with 
+
+```bash
+pip install pytest httpx
+```
+
+then, run 
+
+```bash
+python -m pytest
+```
+
+to run all tests, or 
+
+```bash
+python -m pytest tests/<specific test file> -v
+```
+
+to run a specific test file.
