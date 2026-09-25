@@ -1,5 +1,10 @@
+# Command to run:
+# uvicorn app.main:app --reload
+# http://127.0.0.1:8000/restaurants
+
 from fastapi import FastAPI
-from app.schemas.restaurant import Restaurant
+
+from app.api.routes import restaurants
 
 
 app = FastAPI()
@@ -14,20 +19,5 @@ def root():
 def health():
     return {"status": "ok"}
 
-# Command to run:
-# uvicorn app.main:app --reload
-# http://127.0.0.1:8000/restaurants
-@app.get("/restaurants", response_model=list[Restaurant])
-def get_restaurants():
-    return [
-        Restaurant(
-            id=1,
-            name="Golden Dragon",
-            cuisine="Chines"
-        ),
-        Restaurant(
-            id=2,
-            name="Spice Garden",
-            cuisine="Indian"
-        )
-    ]
+
+app.include_router(restaurants.router)

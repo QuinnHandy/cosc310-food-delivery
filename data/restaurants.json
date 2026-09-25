@@ -1,0 +1,27 @@
+[
+  {
+    "id": 3,
+    "name": "Olive & Thyme",
+    "cuisine": "Greek"
+  },
+  {
+    "id": 1,
+    "name": "Golden Dragon",
+    "cuisine": "Chinese"
+  },
+  {
+    "id": 5,
+    "name": "Maple Street Diner",
+    "cuisine": "American"
+  },
+  {
+    "id": 2,
+    "name": "Spice Garden",
+    "cuisine": "Indian"
+  },
+  {
+    "id": 4,
+    "name": "Casa Del Sol",
+    "cuisine": "Mexican"
+  }
+]
