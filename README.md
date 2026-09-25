@@ -46,17 +46,6 @@ The API runs at http://127.0.0.1:8000
 
 Interactive API docs: http://127.0.0.1:8000/docs
 
-## Running Tests
-Run the full test suite from the repository root:
-```python -m pytest -v```
-
-The test suite covers:
-- the /health endpoint
-- the /restaurants endpoint
-- invalid endpoint handling
-- restaurant repository behavior using temporary JSON data
-- repository error handling for invalid JSON
-
 ## Data
 Sample restaurant data is stored in `data/restaurants.json`.
 The data location can be changed with the `APP_DATA_DIR` environment variable. Tests use this to run against temporary data.
@@ -75,7 +64,7 @@ tests/             # pytest test suite
 scrum/             # Team agreement
 ```
 
-## Running tests
+## Running Tests
 Ensure that pytest is installed locally with 
 
 ```bash
