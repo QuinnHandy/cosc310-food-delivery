@@ -84,3 +84,10 @@ python -m pytest tests/<specific test file> -v
 ```
 
 to run a specific test file.
+
+The test suite covers:
+- the /health endpoint
+- the /restaurants endpoint
+- invalid endpoint handling
+- restaurant repository behavior using temporary JSON data
+- repository error handling for invalid JSON
