@@ -45,6 +45,7 @@ The API runs at http://127.0.0.1:8000
 | GET | `/restaurants` | Lists all restaurants |
 
 Interactive API docs: http://127.0.0.1:8000/docs
+The full M1 API contract (all endpoints, models, and status codes) is in [docs/api-contract.md](docs/api-contract.md).
 
 ## Data
 Sample restaurant data is stored in `data/restaurants.json`.
