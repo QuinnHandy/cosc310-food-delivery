@@ -1,0 +1,17 @@
+[
+    {"id": 1, "restaurant_id": 1, "name": "Kung Pao Chicken", "description": "Peanuts, chili, and diced chicken", "price": 15.5, "available": true},
+    {"id": 2, "restaurant_id": 1, "name": "Vegetable Spring Rolls", "description": "Crispy rolls, 4 pieces", "price": 7.0, "available": true},
+    {"id": 3, "restaurant_id": 1, "name": "Beef Chow Mein", "description": "Stir-fried noodles with beef", "price": 14.25, "available": false},
+    {"id": 4, "restaurant_id": 2, "name": "Butter Chicken", "description": "Creamy tomato curry", "price": 16.0, "available": true},
+    {"id": 5, "restaurant_id": 2, "name": "Vegetable Samosas", "description": "Spiced potato pastries, 2 pieces", "price": 6.5, "available": true},
+    {"id": 6, "restaurant_id": 2, "name": "Garlic Naan", "description": "Tandoor-baked flatbread", "price": 3.5, "available": true},
+    {"id": 7, "restaurant_id": 3, "name": "Chicken Souvlaki", "description": "Grilled skewers with tzatziki", "price": 15.0, "available": true},
+    {"id": 8, "restaurant_id": 3, "name": "Greek Salad", "description": "Feta, olives, tomato, cucumber", "price": 11.0, "available": true},
+    {"id": 9, "restaurant_id": 3, "name": "Spanakopita", "description": "Spinach and feta pie", "price": 8.5, "available": true},
+    {"id": 10, "restaurant_id": 4, "name": "Chicken Burrito", "description": "Rice, beans, and grilled chicken", "price": 12.75, "available": true},
+    {"id": 11, "restaurant_id": 4, "name": "Beef Tacos", "description": "Three tacos with salsa", "price": 11.5, "available": true},
+    {"id": 12, "restaurant_id": 4, "name": "Guacamole & Chips", "description": "Fresh avocado dip", "price": 7.25, "available": true},
+    {"id": 13, "restaurant_id": 5, "name": "Classic Cheeseburger", "description": "Beef patty with cheddar and fries", "price": 13.5, "available": true},
+    {"id": 14, "restaurant_id": 5, "name": "Club Sandwich", "description": "Triple-decker with bacon", "price": 12.5, "available": true},
+    {"id": 15, "restaurant_id": 5, "name": "Apple Pie", "description": "Warm slice with ice cream", "price": 6.0, "available": true}
+  ]
