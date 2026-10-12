@@ -23,7 +23,8 @@ RESTAURANTS = [
 
 def item(id, restaurant_id, **overrides):
     base = {"id": id, "restaurant_id": restaurant_id, "name": f"Item {id}",
-            "description": "desc", "price": 9.99, "available": True}
+            "description": "desc", "price": 9.99, "is_available": True,
+            "category": "Mains", "image_url": ""}
     return {**base, **overrides}
 
 
@@ -87,4 +88,6 @@ def test_real_menu_data_has_no_orphans():
     )
     for restaurant_id in range(1, 6):
         assert repo.get_menu(restaurant_id).items
-    assert MenuItem.model_fields.keys() >= {"id", "restaurant_id", "name", "description", "price", "available"}
+    assert MenuItem.model_fields.keys() >= {
+        "id", "restaurant_id", "name", "description", "price", "is_available", "category", "image_url",
+    }
