@@ -11,3 +11,7 @@ class RestaurantService:
     def list_restaurants(self) -> list[Restaurant]:
         restaurants = self._repository.list_all()
         return sorted(restaurants, key=lambda restaurant: restaurant.id)
+
+    def get_restaurant(self, restaurant_id: int) -> Restaurant:
+        """Raises RestaurantNotFoundError if no restaurant has this ID."""
+        return self._repository.get(restaurant_id)
