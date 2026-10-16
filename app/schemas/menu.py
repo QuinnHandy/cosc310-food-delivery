@@ -27,3 +27,14 @@ class MenuItem(MenuItemCreate):
 class Menu(BaseModel):
     restaurant_id: int
     items: list[MenuItem]
+
+
+class MenuItemResponse(MenuItem):
+    """A menu item as returned by the API."""
+
+
+class MenuResponse(BaseModel):
+    """A restaurant's menu as returned by GET /restaurants/{restaurant_id}/menu."""
+
+    restaurant_id: int
+    items: list[MenuItemResponse]
