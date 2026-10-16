@@ -1,5 +1,5 @@
 from app.repositories.menu_repository import MenuRepository
-from app.schemas.menu import Menu
+from app.schemas.menu import Menu, MenuItem, MenuItemCreate
 
 
 class MenuService:
@@ -11,3 +11,7 @@ class MenuService:
     def get_menu(self, restaurant_id: int) -> Menu:
         """Raises RestaurantNotFoundError if no restaurant has this ID."""
         return self._repository.get_menu(restaurant_id)
+
+    def add_menu_item(self, restaurant_id: int, new: MenuItemCreate) -> MenuItem:
+        """Raises RestaurantNotFoundError if no restaurant has this ID."""
+        return self._repository.add_item(restaurant_id, new)

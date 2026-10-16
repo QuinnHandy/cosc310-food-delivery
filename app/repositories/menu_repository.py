@@ -5,13 +5,6 @@ from pydantic import ValidationError
 
 from app.repositories.restaurant_repository import (
     DataAccessError,
-    RestaurantRepository,
-)
-from app.schemas.menu import Menu, MenuItem
-
-
-from app.repositories.restaurant_repository import (
-    DataAccessError,
     RestaurantNotFoundError,
     RestaurantRepository,
     write_json_atomic,
