@@ -6,7 +6,7 @@ from app.repositories.restaurant_repository import (
     RestaurantNotFoundError,
     RestaurantRepository,
 )
-from app.schemas.restaurant import Restaurant
+from app.schemas.restaurant import Restaurant, RestaurantCreate
 from app.services.restaurant_service import RestaurantService
 
 router = APIRouter()
@@ -56,4 +56,17 @@ def get_restaurant(
         raise HTTPException(
             status_code=500,
             detail=f"Could not load restaurant data: {exc}",
+        ) from exc
+
+@router.post("/restaurants", response_model=Restaurant, status_code=201)
+def create_restaurant(
+    new: RestaurantCreate,
+    service: RestaurantService = Depends(get_restaurant_service),
+) -> Restaurant:
+    try:
+        return service.create_restaurant(new)
+    except DataAccessError as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Could not save restaurant data: {exc}",
         ) from exc

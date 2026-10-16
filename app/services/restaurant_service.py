@@ -1,5 +1,5 @@
 from app.repositories.restaurant_repository import RestaurantRepository
-from app.schemas.restaurant import Restaurant
+from app.schemas.restaurant import Restaurant, RestaurantCreate
 
 
 class RestaurantService:
@@ -23,3 +23,6 @@ class RestaurantService:
     def get_restaurant(self, restaurant_id: int) -> Restaurant:
         """Raises RestaurantNotFoundError if no restaurant has this ID."""
         return self._repository.get(restaurant_id)
+
+    def create_restaurant(self, new: RestaurantCreate) -> Restaurant:
+        return self._repository.add(new)
