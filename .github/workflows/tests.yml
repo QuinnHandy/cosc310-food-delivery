@@ -6,7 +6,7 @@ on:
   pull_request:
 
 jobs:
-  test:
+  pytests:
     runs-on: ubuntu-latest
 
     steps:
