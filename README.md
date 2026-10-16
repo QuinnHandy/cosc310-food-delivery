@@ -38,7 +38,7 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
 The API runs at http://127.0.0.1:8000
-The customer web page is at http://127.0.0.1:8000/ (browse restaurants and click one to see its details).
+The customer web page is at http://127.0.0.1:8000/ (browse restaurants, search by name as you type, filter by cuisine, and click one to see its details).
 
 ## API Endpoints
 | Method | Path | Description |
