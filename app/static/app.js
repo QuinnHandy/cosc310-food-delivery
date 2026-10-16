@@ -56,6 +56,7 @@ async function loadRestaurants(filters = {}) {
     }
   } catch (error) {
     if (requestId !== latestRequest) return;
+    listEl.replaceChildren();
     statusEl.textContent = error.message;
   }
 }
