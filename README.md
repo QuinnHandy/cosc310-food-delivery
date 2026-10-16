@@ -44,9 +44,15 @@ The customer web page is at http://127.0.0.1:8000/ (browse restaurants and click
 | Method | Path | Description |
 |---|---|---|
 | GET | `/health` | Health check, returns 200 |
-| GET | `/restaurants` | Lists all restaurants |
+| GET | `/restaurants` | Lists all restaurants. Optional query parameters: `name` (partial match, ignores case) and `cuisine` (exact match, ignores case) |
 | GET | `/restaurants/{id}` | Details for one restaurant |
 | GET | `/` | Customer web page (HTML) |
+
+Search and filter examples:
+- `/restaurants?cuisine=italian`: only Italian restaurants
+- `/restaurants?name=piz`: restaurants whose name contains "piz"
+- `/restaurants?name=piz&cuisine=italian`: both must match
+
 
 Interactive API docs: http://127.0.0.1:8000/docs
 The full M1 API contract (all endpoints, models, and status codes) is in [docs/api-contract.md](docs/api-contract.md).
