@@ -9,6 +9,18 @@
 
 <body>
     <h1>Restaurants</h1>
+    <form id="search-form"> 
+        <label>Name:
+            <input type="text" id="search-name" placeholder="e.g. spice">
+        </label>
+         <label>Cuisine:
+            <select id="search-cuisine">
+                <option value="">All cuisines</option>
+            </select>
+        </label>
+        <button type="submit">Search</button>
+        <button type="button" id="search-clear">Clear</button>
+    </form>
     <p id="status"></p>
 
     <ul id="restaurant-list"></ul>
