@@ -1,5 +1,5 @@
 from app.repositories.restaurant_repository import RestaurantRepository
-from app.schemas.restaurant import Restaurant, RestaurantCreate
+from app.schemas.restaurant import Restaurant, RestaurantCreate, RestaurantUpdate
 
 
 class RestaurantService:
@@ -26,3 +26,8 @@ class RestaurantService:
 
     def create_restaurant(self, new: RestaurantCreate) -> Restaurant:
         return self._repository.add(new)
+
+    def update_restaurant(
+        self, restaurant_id: int, changes: RestaurantUpdate
+    ) -> Restaurant:
+        return self._repository.update(restaurant_id, changes)
