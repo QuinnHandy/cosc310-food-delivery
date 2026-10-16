@@ -8,7 +8,7 @@ from app.repositories.restaurant_repository import (
     RestaurantRepository,
 )
 from app.schemas.menu import MenuResponse
-from app.schemas.restaurant import Restaurant, RestaurantCreate
+from app.schemas.restaurant import Restaurant, RestaurantCreate, RestaurantUpdate
 from app.services.menu_service import MenuService
 from app.services.restaurant_service import RestaurantService
 
@@ -108,3 +108,30 @@ def create_restaurant(
             status_code=500,
             detail=f"Could not save restaurant data: {exc}",
         ) from exc
+
+
+@router.patch(
+    "/restaurants/{restaurant_id}",
+    response_model=Restaurant,
+    status_code=200,
+)
+def update_restaurant(
+    restaurant_id: int,
+    changes: RestaurantUpdate,
+    service: RestaurantService = Depends(get_restaurant_service),
+) -> Restaurant:
+    try:
+        return service.update_restaurant(restaurant_id, changes)
+
+    except RestaurantNotFoundError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail=str(exc),
+        ) from exc
+
+    except DataAccessError as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Could not update restaurant data: {exc}",
+        ) from exc
+
