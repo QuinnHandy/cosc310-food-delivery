@@ -92,10 +92,12 @@ Every endpoint can also return 500 if the stored data can't be read.
 Returns all restaurants sorted by `id`. Optional query parameters narrow the results. Filters combine with AND.
 
 **Query parameters**
-- `q` (str, optional): case-insensitive partial match on name **or** cuisine, e.g. `?q=pizza`. An empty `q` is ignored: `?q=` returns all restaurants.
-- `cuisine` (str, optional): case-insensitive exact match on cuisine, e.g. `?cuisine=Italian`
+- `name` (str, optional): partial match on restaurant name, ignoring case, e.g. `?name=piz` finds "Pizza Place".
+- `cuisine` (str, optional): exact match on cuisine, ignoring case, e.g. `?cuisine=italian`. A partial value like `?cuisine=ital` matches nothing.
 
-**Response 200:** `list[Restaurant]`. The list is empty if nothing matches; that isn't an error.
+Spaces at either end of a value are trimmed. An empty or spaces-only parameter is ignored, so `?name=` returns every restaurant. If both parameters are given, a restaurant must match both.
+
+**Response 200:** `list[Restaurant]`, sorted by `id`. If nothing matches, the response is `200` with an empty list `[]`, not a `404`.
 ```json
 [{
   "id": 1,

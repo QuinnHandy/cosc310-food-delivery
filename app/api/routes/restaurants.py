@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.core.config import settings
 from app.repositories.restaurant_repository import (
@@ -24,10 +24,18 @@ def get_restaurant_service(
 
 @router.get("/restaurants", response_model=list[Restaurant])
 def list_restaurants(
+    name: str | None = Query(
+        None,
+        description="Partial match on restaurant name, ignoring case (e.g. 'piz' finds 'Pizza Place').",
+    ),
+    cuisine: str | None = Query(
+        None,
+        description="Exact match on cuisine, ignoring case (e.g. 'italian').",
+    ),
     service: RestaurantService = Depends(get_restaurant_service),
 ) -> list[Restaurant]:
     try:
-        return service.list_restaurants()
+        return service.search_restaurants(name=name, cuisine=cuisine)
     except DataAccessError as exc:
         raise HTTPException(
             status_code=500,
