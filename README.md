@@ -38,11 +38,15 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
 The API runs at http://127.0.0.1:8000
+The customer web page is at http://127.0.0.1:8000/ (browse restaurants and click one to see its details).
+
 ## API Endpoints
 | Method | Path | Description |
 |---|---|---|
 | GET | `/health` | Health check, returns 200 |
 | GET | `/restaurants` | Lists all restaurants |
+| GET | `/restaurants/{id}` | Details for one restaurant |
+| GET | `/` | Customer web page (HTML) |
 
 Interactive API docs: http://127.0.0.1:8000/docs
 The full M1 API contract (all endpoints, models, and status codes) is in [docs/api-contract.md](docs/api-contract.md).
@@ -59,6 +63,7 @@ app/
   repositories/    # Data access (reads JSON)
   schemas/         # Pydantic models
   core/            # Configuration
+  static/          # Web frontend (HTML and JS)
   main.py          # App entry point
 data/              # Sample JSON data
 tests/             # pytest test suite
@@ -92,3 +97,4 @@ The test suite covers:
 - invalid endpoint handling
 - restaurant repository behavior using temporary JSON data
 - repository error handling for invalid JSON
+- the webpage and the static files served

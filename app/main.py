@@ -3,16 +3,24 @@
 # http://127.0.0.1:8000/restaurants
 
 from fastapi import FastAPI
+from pathlib import Path
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
+
 
 from app.api.routes import restaurants
+
+STATIC_DIR = Path(__file__).resolve().parent / "static" 
 
 
 app = FastAPI()
 
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
-@app.get("/")
+
+@app.get("/", include_in_schema=False)    #modified to exclude route from API docs since its a webpage not endpoint
 def root():
-    return {"message": "Food Delivery API"}
+    return FileResponse(STATIC_DIR / "index.html")
 
 
 @app.get("/health")
