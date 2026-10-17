@@ -24,8 +24,10 @@ Our four main requirements when making this decision:
 ## Decision
 We decided to use a three-layer structure inside one FastAPI application:
 - `app/api/routes/`: Handles incoming requests and returns appropriate HTTP status codes, such as 404, 422, and 500.
-- `app/services/`: Handles business logic, including search, filtering, validation, and checks for orphaned records.
-- `app/repositories/`: Handles reading and writing JSON files. Writes use a temporary file and os.replace to reduce the risk of incomplete file updates.
+- `app/services/`: Handles business logic such as search and filtering. For simple operations (get, create, update), services currently pass through to the repository, which keeps a place for future logic like ordering rules.
+- `app/repositories/`: Handles reading and writing JSON files. Repositories also validate records loaded from JSON against the models, check menu items for orphaned restaurant IDs, and apply partial updates. Writes use a temporary file and os.replace to reduce the risk of incomplete file updates.
+
+Request validation is done by the Pydantic schemas in `app/schemas/`, and FastAPI returns 422 automatically when it fails.
 
 We will use FastAPI's Depends to provide the required services and repositories to the routes. This also makes it easier to replace dependencies when testing different parts of the application.
 
@@ -49,6 +51,7 @@ We will use FastAPI's Depends to provide the required services and repositories 
 - **Extra indirection:** simple features such as "list restaurants" need code in three files.
 - **Possible boundary violations:** A route could bypass the service layer and access a repository directly. We will use code reviews to help ensure that everyone follows the agreed structure.
 - **Performance vs maintainability:** The extra calls between layers introduce some overhead, but we expect this to be negligible for a our project. JSON/CSV file storage also has limitations when handling concurrent writes and maintaining data integrity, but we will work within the storage requirements set by the course.
+- **Logic in the repository layer:** Some data-integrity logic (orphan checks, merging partial updates) lives in the repository layer rather than the service layer. This keeps it next to the file data, but it makes the repositories do more than just storage. We will revisit this if the services grow.
 
 **Revisit when:** We add more complex features, such as orders, carts, and deliveries, or if we encounter problems with the current architecture
 
@@ -78,7 +81,7 @@ The repository assigns IDs when a new record is created by finding the highest e
 
 - The server controls ID assignment, which reduces the chance of clients choosing IDs that are already in use.
 - Keeping IDs stable helps menu items continue to reference the correct restaurant.
-- Reusing deleted IDs could cause confusion if an old reference points to a different record.
+- Reusing IDs could cause confusion if an old reference points to a different record. With max + 1, reusing IDs is avoided as long as records are not deleted.
 - This approach is simple to implement and works with the JSON files used in M1.
 
 ## Consequences
@@ -89,8 +92,9 @@ The repository assigns IDs when a new record is created by finding the highest e
 
 - If two create requests run at the same time, they could calculate the same next ID. Our current approach does not prevent this, but it is an acceptable limitation for the current M1 setup.
 - IDs are sequential and easy to guess. They are used to identify records, not to provide security or control access.
+- max + 1 only avoids reusing IDs while records are never deleted. If the record with the highest ID were deleted, the next create would get that same ID again. That would bring back the problem option 3 was rejected for. This can't happen in M1 because there is no delete.
 
-**Revisit when:** the project needs to support concurrent writers or the current ID assignment method causes problems.
+**Revisit when:** we add delete endpoints (switch to a stored next_id counter so IDs are never reused), the project needs to support concurrent writers, or the current ID assignment method causes problems.
 
 ---
 
