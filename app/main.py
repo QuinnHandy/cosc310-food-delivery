@@ -22,6 +22,9 @@ app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 def root():
     return FileResponse(STATIC_DIR / "index.html")
 
+@app.get("/owner", include_in_schema=False)
+def owner_page():
+    return FileResponse(STATIC_DIR / "owner.html")
 
 @app.get("/health")
 def health():

@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Food Delivery - Restaurant Management</title>
+    <link rel="icon" href="data:,">
+</head>
+
+<body>
+    <h1>Restaurant Management</h1>
+    <p><a href="/">Back to the customer page</a></p>
+
+    <section id="manage">
+        <h2 id="manage-title">Add a restaurant</h2>
+        <form id="manage-form">
+            <label>Name:
+                <input type="text" id="manage-name" required>
+            </label>
+            <label>Cuisine:
+                <input type="text" id="manage-cuisine" required>
+            </label>
+            <button type="submit" id="manage-submit">Add restaurant</button>
+            <button type="button" id="manage-cancel" hidden>Cancel</button>
+        </form>
+        <p id="manage-status" role="status"></p>
+    </section>
+
+    <hr>
+
+    <h2>Existing restaurants</h2>
+    <p id="list-status"></p>
+    <ul id="restaurant-list"></ul>
+
+    <script src="/static/api.js"></script>
+    <script src="/static/owner.js"></script>
+</body>
+
+</html>
