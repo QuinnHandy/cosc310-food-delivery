@@ -1,4 +1,4 @@
-# Decision Receipt: Layered architecture (route → service → repository)
+# 1. Decision Receipt: Layered architecture (route → service → repository)
 
 - **Date:** 2026-10-16
 - **Status:** Accepted
@@ -50,4 +50,87 @@ We will use FastAPI's Depends to provide the required services and repositories 
 - **Possible boundary violations:** A route could bypass the service layer and access a repository directly. We will use code reviews to help ensure that everyone follows the agreed structure.
 - **Performance vs maintainability:** The extra calls between layers introduce some overhead, but we expect this to be negligible for a our project. JSON/CSV file storage also has limitations when handling concurrent writes and maintaining data integrity, but we will work within the storage requirements set by the course.
 
-**Revisit when:** We add more complex features, such as orders, carts, and deliveries, or if we encounter problems with the current architecture. We will review whether the existing layers still meet our needs while continuing to follow the course's JSON/CSV storage requirements.
+**Revisit when:** We add more complex features, such as orders, carts, and deliveries, or if we encounter problems with the current architecture
+
+---
+
+# 2. Decision Receipt: Server-assigned IDs (max + 1)
+
+- **Date:** 2026-10-16
+- **Status:** Accepted
+- **Decided by:** Team 11
+
+## Context
+
+Restaurants and menu items need unique IDs so the API and JSON files can identify the correct records. Menu items also have a `restaurant_id` to show which restaurant they belong to. Once an ID is assigned, it should stay the same so these references remain valid.
+
+## Options considered
+
+1. **Server-assigned IDs using max(existing IDs) + 1 (chosen).**
+2. **Client-supplied IDs:** the frontend sends an ID when creating a record.
+3. **Reusing deleted IDs:** use numbers from records that have been removed.
+
+## Decision
+
+The repository assigns IDs when a new record is created by finding the highest existing ID and adding 1. If there are no existing records, the first ID is 1. The client does not need to provide an ID when creating a restaurant or menu item.
+
+## Reasons
+
+- The server controls ID assignment, which reduces the chance of clients choosing IDs that are already in use.
+- Keeping IDs stable helps menu items continue to reference the correct restaurant.
+- Reusing deleted IDs could cause confusion if an old reference points to a different record.
+- This approach is simple to implement and works with the JSON files used in M1.
+
+## Consequences
+
+**Benefits:** IDs are predictable, easy to understand, and straightforward to manage in the JSON files.
+
+**Trade-offs / costs**
+
+- If two create requests run at the same time, they could calculate the same next ID. Our current approach does not prevent this, but it is an acceptable limitation for the current M1 setup.
+- IDs are sequential and easy to guess. They are used to identify records, not to provide security or control access.
+
+**Revisit when:** the project needs to support concurrent writers or the current ID assignment method causes problems.
+
+---
+
+# 3. Decision Receipt: PATCH for Updates
+
+- **Date:** 2026-10-16
+- **Status:** Accepted
+- **Decided by:** Team 11
+
+## Context
+
+The restaurant owner needs to be able to edit an existing restaurant. Sometimes only one field needs to change, such as the name or cuisine. Requiring the frontend to send the entire record for every small change would make updates less convenient.
+
+## Options considered
+
+1. **PATCH with partial updates (chosen):** only the fields included in the request are changed.
+2. **PUT to replace the whole record:** the client sends the complete record, including fields that have not changed.
+
+## Decision
+
+We use `PATCH /restaurants/{restaurant_id}` with a `RestaurantUpdate` model. The fields `name` and `cuisine` are optional, so the client can send just the field it wants to change.
+
+In `restaurant_repository.py`, the existing restaurant data is combined with the supplied fields using `changes.model_dump(exclude_unset=True)`. This keeps fields that were not included in the request unchanged. Provided names and cuisine values must also pass validation, including the minimum length of one character.
+
+## Reasons
+
+- It matches the owner page use case because an owner can change one field without resending the entire restaurant record.
+- It reduces the chance of accidentally overwriting other fields with outdated values from a form.
+- The update model makes it clear which fields can be changed and what validation they must pass.
+- The repository handles the update to the JSON data, keeping file operations separate from the route and service logic.
+
+## Consequences
+
+**Benefits:** smaller requests, fewer accidental changes to unrelated fields, and a `404` response when the restaurant ID does not exist.
+
+**Trade-offs / costs**
+
+- Fields that are not sent remain unchanged. In the current schema, an empty name or cuisine is rejected rather than used to clear the field.
+- PATCH is designed for partial updates. A client that wants to replace the full record must send all the relevant fields.
+- Two updates to the same record can still overwrite each other if they happen close together. M1 does not include version checking or conflict detection.
+
+**Revisit when:** we need to support clearing fields, detect conflicting updates, or change how full-record updates should work.
+
