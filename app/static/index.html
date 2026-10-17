@@ -5,15 +5,18 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Food Delivery - Restaurants</title>
+    <link rel="icon" href="data:,">
 </head>
 
 <body>
     <h1>Restaurants</h1>
-    <form id="search-form"> 
+    <p><a href="/owner">Restaurant owner? Manage restaurants</a></p>
+
+    <form id="search-form">
         <label>Name:
             <input type="text" id="search-name" placeholder="e.g. spice">
         </label>
-         <label>Cuisine:
+        <label>Cuisine:
             <select id="search-cuisine">
                 <option value="">All cuisines</option>
             </select>
@@ -21,6 +24,7 @@
         <button type="submit">Search</button>
         <button type="button" id="search-clear">Clear</button>
     </form>
+
     <p id="status"></p>
 
     <ul id="restaurant-list"></ul>
@@ -31,6 +35,7 @@
         <p>Restaurant ID: <span id="details-id"></span></p>
     </section>
 
+    <script src="/static/api.js"></script>
     <script src="/static/app.js"></script>
 </body>
 

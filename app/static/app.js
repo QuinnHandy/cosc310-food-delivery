@@ -1,21 +1,5 @@
-// All calls to the backend live in this one section.
-const API = {
-  async getRestaurants(filters = {}) {
-    const params = new URLSearchParams();
-    if (filters.name) params.set("name", filters.name);
-    if (filters.cuisine) params.set("cuisine", filters.cuisine);
-    const query = params.toString();
-    const response = await fetch(query ? `/restaurants?${query}` : "/restaurants");
-    if (!response.ok) throw new Error("Could not load restaurants");
-    return response.json();
-  },
-  async getRestaurant(id) {
-    const response = await fetch(`/restaurants/${id}`);
-    if (response.status === 404) throw new Error("Restaurant not found");
-    if (!response.ok) throw new Error("Could not load restaurant details");
-    return response.json();
-  },
-};
+// Customer page: restaurant list, details, and search.
+// The API object comes from api.js, which is loaded first.
 
 const statusEl = document.getElementById("status");
 const listEl = document.getElementById("restaurant-list");
@@ -92,18 +76,24 @@ document.getElementById("search-clear").addEventListener("click", () => {
   formEl.reset();
   loadRestaurants();
 });
+
+// Fills the cuisine dropdown from the API. The API matches cuisine ignoring
+// case, so "italian" and "Italian" are shown once.
 async function loadCuisines() {
   try {
     const all = await API.getRestaurants();
-    const cuisines = [...new Set(all.map((r) => r.cuisine))].sort();
+    const byKey = new Map();
+    for (const restaurant of all) {
+      const key = restaurant.cuisine.toLowerCase();
+      if (!byKey.has(key)) byKey.set(key, restaurant.cuisine);
+    }
+    const cuisines = [...byKey.values()].sort((a, b) => a.localeCompare(b));
+    cuisineInput.replaceChildren(new Option("All cuisines", ""));
     for (const cuisine of cuisines) {
-      const option = document.createElement("option");
-      option.value = cuisine;
-      option.textContent = cuisine;
-      cuisineInput.appendChild(option);
+      cuisineInput.appendChild(new Option(cuisine, cuisine));
     }
   } catch (error) {
-    // the main list load below shows an error message if the API is down
+    // the main list load shows an error message if the API is down
   }
 }
 

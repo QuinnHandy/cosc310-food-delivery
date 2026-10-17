@@ -39,6 +39,7 @@ uvicorn app.main:app --reload
 ```
 The API runs at http://127.0.0.1:8000
 The customer web page is at http://127.0.0.1:8000/ (browse restaurants, search by name as you type, filter by cuisine, and click one to see its details).
+The restaurant owner page is at http://127.0.0.1:8000/owner (add a restaurant, or click Edit on one to change it). 
 
 ## API Endpoints
 | Method | Path | Description |
@@ -47,6 +48,9 @@ The customer web page is at http://127.0.0.1:8000/ (browse restaurants, search b
 | GET | `/restaurants` | Lists all restaurants. Optional query parameters: `name` (partial match, ignores case) and `cuisine` (exact match, ignores case) |
 | GET | `/restaurants/{id}` | Details for one restaurant |
 | GET | `/` | Customer web page (HTML) |
+| POST | `/restaurants` | Create a restaurant (`name`, `cuisine`). Returns 201 with the new restaurant |
+| PATCH | `/restaurants/{id}` | Update a restaurant's `name` and/or `cuisine` (404 if the ID doesn't exist) |
+| GET | `/owner` | Restaurant management page (HTML) |
 
 Search and filter examples:
 - `/restaurants?cuisine=italian`: only Italian restaurants
