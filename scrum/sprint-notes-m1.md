@@ -1,11 +1,11 @@
 # Sprint Notes: M1
 
-Facts below come from the git history and GitHub issues and PRs. Anything marked **TODO** must be filled in by the team.
+Facts below come from the git history and GitHub issues and PRs.
 
 ## Sprint info
 
 - **Sprint:** M1 First Vertical Slice
-- **Dates:** 2026-09-27 to 2026-10-16 (first and last M1 commits on `main`). TODO: update the end date if more M1 work is merged.
+- **Dates:** 2026-09-27 to 2026-10-16 (first and last M1 commits on `main`). 
 - **Team members:**
 
   | Member | GitHub |
@@ -15,8 +15,7 @@ Facts below come from the git history and GitHub issues and PRs. Anything marked
   | Timo Clement | @Timnims |
   | Samuel Mwanduka | @anonymous1194 |
 
-  GitHub logins were matched to names using commit author names and emails. TODO: Timo Clement to confirm @Timnims (matched by elimination).
-- **Scrum Master / facilitator:** TODO
+- **Scrum Master / facilitator:** Whole team. 
 
 ## Sprint goal
 
@@ -48,11 +47,7 @@ Deliver one complete vertical slice for the Restaurant component: list → searc
 
 ## Stand-up / meeting log
 
-Add one row per stand-up or meeting. Only record meetings that actually happened.
-
-| Date | Attendees | Done since last | Plan next | Blockers |
-|---|---|---|---|---|
-| TODO | TODO | TODO | TODO | TODO |
+N/A - communicated all on whatsapp.
 
 ## Sprint review
 
@@ -74,7 +69,7 @@ Add one row per stand-up or meeting. Only record meetings that actually happened
 - CI: GitHub Actions runs pytest on every push and PR (#43)
 - Decision receipts for our main engineering decisions (#45)
 
-**Demoed:** TODO: list what was shown in the sprint review or demo.
+**Demoed:** N/A
 
 **Not finished (open issues)**
 - #38: update menu items. `MenuRepository.update_item` and its tests exist, but there is no API route yet.
@@ -86,13 +81,13 @@ Add one row per stand-up or meeting. Only record meetings that actually happened
 ## Retrospective
 
 **What went well**
-- TODO
+- whatsapp
 
 **What to improve**
-- TODO
+- Not waiting until the last minute, trying to be more proactive
 
 **Action items**
-- TODO
+
 
 ## Contribution summary
 
@@ -100,13 +95,13 @@ Counted from `main` over the M1 period (from 2026-09-27). Commits exclude merge 
 
 | Member | M1 PRs authored and merged | M1 commits | PRs reviewed and merged for others | Agreed contribution % |
 |---|---|---|---|---|
-| Quinn Handy | 5: #47, #49, #51, #53, #59 | 9 | 8: #50, #52, #55, #56, #60, #61, #62, #63 | TODO |
-| Asher Nathan | 2: #48, #50 | 2 | 3: #47, #49, #51 | TODO |
-| Timo Clement | 4: #56, #58, #60, #61 | 5 | 1: #59 | TODO |
-| Samuel Mwanduka | 4: #52, #55, #62, #63 | 11 | 2: #48, #53 | TODO |
-| **Total** | 15 | 27 | | **TODO (must add to 100%)** |
+| Quinn Handy | 5: #47, #49, #51, #53, #59 | 9 | 8: #50, #52, #55, #56, #60, #61, #62, #63 | 25% |
+| Asher Nathan | 2: #48, #50 | 2 | 3: #47, #49, #51 | 25% |
+| Timo Clement | 4: #56, #58, #60, #61 | 5 | 1: #59 | 25% |
+| Samuel Mwanduka | 4: #52, #55, #62, #63 | 11 | 2: #48, #53 | 25% |
+| **Total** | 15 | 27 | | 100% |
 
 Notes:
 - Quinn Handy's 9 commits include `205c552` (a change to `app/static/app.js`), which is part of Samuel Mwanduka's PR #55.
 - Timo Clement merged his own PR #58, so it isn't counted as a review.
-- Work done outside the repository (for example the Level 1 DFD, meetings, and demo preparation) isn't shown here. TODO: the team should account for it when agreeing percentages.
+- Work done outside the repository (for example the Level 1 DFD, meetings, and demo preparation) isn't shown here.
