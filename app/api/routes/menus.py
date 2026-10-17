@@ -1,6 +1,7 @@
 
 from fastapi import APIRouter, Depends, HTTPException
 
+from app.api.openapi import RESTAURANT_NOT_FOUND, RestaurantId, data_error
 from app.core.config import settings
 from app.repositories.menu_repository import MenuRepository
 from app.repositories.restaurant_repository import (
@@ -34,12 +35,21 @@ def get_menu_service(
     "/restaurants/{restaurant_id}/menu",
     response_model=MenuItem,
     status_code=201,
+    summary="Add a menu item",
+    responses={
+        **RESTAURANT_NOT_FOUND,
+        **data_error("Stored restaurant or menu data could not be read or saved."),
+    },
 )
 def add_menu_item(
-    restaurant_id: int,
+    restaurant_id: RestaurantId,
     new: MenuItemCreate,
     service: MenuService = Depends(get_menu_service),
 ) -> MenuItem:
+    """Adds an item to the restaurant's menu and returns it with its new server-assigned `id` and `restaurant_id`.
+
+    Returns `422` if `restaurant_id` is not an integer, `name`, `price`, or `category` is missing, a text field that must not be empty is empty, or `price` is not greater than 0.
+    """
     try:
         return service.add_menu_item(restaurant_id, new)
 

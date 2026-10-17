@@ -9,6 +9,7 @@ from fastapi.staticfiles import StaticFiles
 
 
 from app.api.routes import restaurants, menus
+from app.schemas.common import HealthResponse
 
 STATIC_DIR = Path(__file__).resolve().parent / "static" 
 
@@ -26,8 +27,9 @@ def root():
 def owner_page():
     return FileResponse(STATIC_DIR / "owner.html")
 
-@app.get("/health")
+@app.get("/health", response_model=HealthResponse, summary="Health check")
 def health():
+    """Returns `{"status": "ok"}` when the API is running. Has no parameters and no error responses."""
     return {"status": "ok"}
 
 
