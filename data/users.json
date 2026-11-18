@@ -1,0 +1,68 @@
+[
+  {
+    "id": 1,
+    "email": "admin@foodapp.test",
+    "password_hash": "pbkdf2_sha256$600000$8d872bc286404b23d8088369b27f7d55$778907c28a5f8d02fe3f798410774ccccca6cc6d1e7e981e88c7d6c2eb1f8513",
+    "role": "admin",
+    "name": "Admin User",
+    "phone": "",
+    "delivery_address": "",
+    "is_active": true,
+    "restaurant_id": null
+  },
+  {
+    "id": 2,
+    "email": "owner1@foodapp.test",
+    "password_hash": "pbkdf2_sha256$600000$695452461438a425a51b56de0896fa2e$739077efdb1c3c47deba012f8338b2811a5e7640a1de6be4801fb43a1b1150f3",
+    "role": "restaurant_owner",
+    "name": "Golden Dragon Owner",
+    "phone": "",
+    "delivery_address": "",
+    "is_active": true,
+    "restaurant_id": 1
+  },
+  {
+    "id": 3,
+    "email": "owner2@foodapp.test",
+    "password_hash": "pbkdf2_sha256$600000$794c6c7ff58c38c585bc4b8b75f73572$9edcd2c0165e5621a8e833c2328764143bf0f1e6ba02da7f73b4ba7c2af7a34a",
+    "role": "restaurant_owner",
+    "name": "Spice Garden Owner",
+    "phone": "",
+    "delivery_address": "",
+    "is_active": true,
+    "restaurant_id": 2
+  },
+  {
+    "id": 4,
+    "email": "alice@foodapp.test",
+    "password_hash": "pbkdf2_sha256$600000$2b192d35916f3cd251f54efc834f4c9c$3e98eddc83093ee5b688296c3042c776105f1dbbb86768bdc2abb4e39b25c505",
+    "role": "customer",
+    "name": "Alice Smith",
+    "phone": "250-555-0101",
+    "delivery_address": "123 Main St, Kelowna, BC",
+    "is_active": true,
+    "restaurant_id": null
+  },
+  {
+    "id": 5,
+    "email": "bob@foodapp.test",
+    "password_hash": "pbkdf2_sha256$600000$b9dda98c1982860a7d80ff423fb1c7df$34f5eea0fcf217428463eedd09ac605e01f4f712ceb456fed2c85dfac1814a89",
+    "role": "customer",
+    "name": "Bob Jones",
+    "phone": "250-555-0102",
+    "delivery_address": "456 Oak Ave, Kelowna, BC",
+    "is_active": true,
+    "restaurant_id": null
+  },
+  {
+    "id": 6,
+    "email": "carol@foodapp.test",
+    "password_hash": "pbkdf2_sha256$600000$3dc914bb4a283504c8708fa1d8c4ea43$59b0ced2d95cddbd809a93a64437e9f1ae3a6f89b27e5c4052b9a0e4473d2430",
+    "role": "customer",
+    "name": "Carol Lee",
+    "phone": "250-555-0103",
+    "delivery_address": "789 Pine Rd, Kelowna, BC",
+    "is_active": false,
+    "restaurant_id": null
+  }
+]
