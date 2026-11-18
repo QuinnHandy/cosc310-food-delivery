@@ -1,10 +1,13 @@
 import secrets
 from datetime import datetime, timezone
 
-from app.core.security import verify_password
+from app.core.security import hash_password, verify_password
 from app.repositories.session_repository import SessionRepository
 from app.repositories.user_repository import UserRepository
 from app.schemas.auth import LoginResponse, Session
+
+# Hash of a random value nobody knows. Checked when an email has no account.
+_DUMMY_HASH = hash_password(secrets.token_urlsafe(32))
 
 
 class InvalidCredentialsError(Exception):
@@ -27,8 +30,11 @@ class AuthService:
     def login(self, email: str, password: str) -> LoginResponse:
         """Raises InvalidCredentialsError or AccountDeactivatedError if sign-in is refused."""
         user = self._user_repository.get_by_email(email)
+        # An unknown email still costs one hash, so response time does not reveal it.
+        stored_hash = user.password_hash if user is not None else _DUMMY_HASH
+        password_matches = verify_password(password, stored_hash)
         # Same message for both cases, so a caller cannot tell which emails are registered.
-        if user is None or not verify_password(password, user.password_hash):
+        if user is None or not password_matches:
             raise InvalidCredentialsError("Invalid email or password")
         # Checked only after the password, so only the account holder learns it is deactivated.
         if not user.is_active:

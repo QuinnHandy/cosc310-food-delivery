@@ -8,6 +8,7 @@ from app.repositories.session_repository import SessionRepository
 from app.repositories.user_repository import UserRepository
 from app.schemas.user import UserRole
 from app.services.auth_service import (
+    _DUMMY_HASH,
     AccountDeactivatedError,
     AuthService,
     InvalidCredentialsError,
@@ -80,6 +81,22 @@ def test_wrong_password_and_unknown_email_give_same_error(tmp_path):
 
     assert str(wrong_password.value) == str(unknown_email.value) == "Invalid email or password"
     assert not session_file.exists()
+
+
+# Failure case: an unknown email still does a password check, so it is not noticeably faster.
+def test_unknown_email_still_checks_a_password_hash(tmp_path, monkeypatch):
+    service, _ = make_service(tmp_path, [entry(1)])
+    checked = []
+
+    def fake_verify(password, stored):
+        checked.append(stored)
+        return False
+
+    monkeypatch.setattr("app.services.auth_service.verify_password", fake_verify)
+
+    with pytest.raises(InvalidCredentialsError):
+        service.login("nobody@test.com", PASSWORD)
+    assert checked == [_DUMMY_HASH]
 
 
 # Failure case: the right password for a deactivated account creates no session.
