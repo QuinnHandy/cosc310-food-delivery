@@ -67,11 +67,24 @@ Interactive API docs: http://127.0.0.1:8000/docs
 The full M1 API contract (all endpoints, models, and status codes) is in [docs/api-contract.md](docs/api-contract.md).
 
 ## Data
-- `data/restaurants.json` and `data/menus.json` hold the sample data, and they are where changes made through the app (API or web pages) are saved.
+- `data/restaurants.json`, `data/menus.json` and `data/users.json` hold the sample data, and they are where changes made through the app (API or web pages) are saved.
+- `data/users.json` stores only salted password hashes (PBKDF2-SHA256), never plain passwords.
 - Saved changes survive a restart of the server. Writes go to a temporary file first and then replace the original, so a crash never leaves a half-written file.
 - IDs are assigned by the server (highest existing ID + 1) and never change, so menu items keep pointing at the right restaurant.
 - The data location can be changed with the `APP_DATA_DIR` environment variable.
 - Creating or editing data through the app changes these tracked files. To reset them to the committed sample data, run `git checkout -- data/`.
+
+## Demo accounts
+The seed data in `data/users.json` has these accounts. They all use the demo password `Password123!`.
+
+| Email | Role | Notes |
+|---|---|---|
+| `admin@foodapp.test` | admin | |
+| `owner1@foodapp.test` | restaurant owner | Manages Golden Dragon (restaurant 1) |
+| `owner2@foodapp.test` | restaurant owner | Manages Spice Garden (restaurant 2) |
+| `alice@foodapp.test` | customer | Has a phone number and delivery address |
+| `bob@foodapp.test` | customer | Has a phone number and delivery address |
+| `carol@foodapp.test` | customer | Deactivated account (`is_active: false`), for the deactivated-customer demo |
 
 ## Repository Structure
 ```

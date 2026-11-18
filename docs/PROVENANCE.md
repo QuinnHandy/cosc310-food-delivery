@@ -41,6 +41,7 @@ Dates are the day the PR was merged into `main` (Pacific time, from GitHub). Mem
 | 2026-09-24 to 2026-10-16 | README (`README.md`) | Quinn Handy: PR #3, #12, #47, #53; Asher Nathan: PR #10, #16, #20; Timo Clement: PR #17; Samuel Mwanduka: PR #52, #55, #62; M1 update: PR for #46 | TODO (member to confirm) | TODO (member to confirm) | Quinn Handy, Asher Nathan, Timo Clement, Samuel Mwanduka (each for their own PRs) | TODO (member to confirm) | Reviewed in each PR; TODO: confirm the setup and test commands were run |
 | TODO | Level 1 DFD (diagram made outside the repo) | Not in repo. TODO: add link or file location | TODO (member to confirm) | TODO (member to confirm) | TODO | TODO (member to confirm) | TODO |
 | TODO (merge date) | M1 README update, this provenance file, and sprint notes (`scrum/sprint-notes-m1.md`) (#46) | PR for #46 | TODO (member to confirm) | TODO (member to confirm) | Quinn Handy | TODO (member to confirm) | `python -m pytest` passes (documentation only); TODO: reviewer |
+| 2026-11-18 | User model, password hashing, UserRepository, users.json seed and tests (#79) | PR for #79 | AI-ASSISTED | Claude Code (IDE) | Quinn Handy | Drafted the schemas, repository, hashing helper and tests from the #79 acceptance criteria | Reviewed every file; full pytest suite passes; reviewed by TODO (reviewer) |
 
 ## How to add an entry
 
