@@ -42,6 +42,7 @@ Dates are the day the PR was merged into `main` (Pacific time, from GitHub). Mem
 | TODO | Level 1 DFD (diagram made outside the repo) | Not in repo. TODO: add link or file location | TODO (member to confirm) | TODO (member to confirm) | TODO | TODO (member to confirm) | TODO |
 | TODO (merge date) | M1 README update, this provenance file, and sprint notes (`scrum/sprint-notes-m1.md`) (#46) | PR for #46 | TODO (member to confirm) | TODO (member to confirm) | Quinn Handy | TODO (member to confirm) | `python -m pytest` passes (documentation only); TODO: reviewer |
 | 2026-11-18 | User model, password hashing, UserRepository, users.json seed and tests (#79) | PR for #79 | AI-ASSISTED | Claude Code (IDE) | Quinn Handy | Drafted the schemas, repository, hashing helper and tests from the #79 acceptance criteria | Reviewed every file; full pytest suite passes; reviewed by TODO (reviewer) |
+| 2026-11-18 | Sign in/sign out: auth schemas, SessionRepository, AuthService, /auth routes, tests (#80) | PR for #80 | AI-ASSISTED | Claude Code (IDE) | Quinn Handy | Drafted the schemas, session repository, auth service, routes, tests and docs from the #80 acceptance criteria | `tests/test_auth_service.py`, `tests/test_session_repository.py`, `tests/test_auth_api.py`, `tests/test_openapi.py`; full pytest suite passes; reviewed by TODO (reviewer) |
 
 ## How to add an entry
 

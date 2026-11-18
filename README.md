@@ -51,6 +51,8 @@ The restaurant owner page is at http://127.0.0.1:8000/owner (add a restaurant, o
 | PATCH | `/restaurants/{restaurant_id}` | Update a restaurant's `name` and/or `cuisine` (404 if the ID doesn't exist) |
 | GET | `/restaurants/{restaurant_id}/menu` | A restaurant's menu items sorted by ID (404 if the restaurant doesn't exist; `items` is `[]` if it has none) |
 | POST | `/restaurants/{restaurant_id}/menu` | Add a menu item (`name`, `price`, `category`, plus optional `description`, `is_available`, `image_url`). Returns 201 with the new item (404 if the restaurant doesn't exist) |
+| POST | `/auth/login` | Sign in with `email` and `password`. Returns 200 with `token`, `user_id` and `role` (401 if the details are wrong, 403 if the account is deactivated) |
+| POST | `/auth/logout` | Sign out using `Authorization: Bearer <token>`. Returns 200 with a message (401 if the token is missing or not valid) |
 
 Web pages (HTML, not part of the API docs):
 | Method | Path | Description |
@@ -85,6 +87,8 @@ The seed data in `data/users.json` has these accounts. They all use the demo pas
 | `alice@foodapp.test` | customer | Has a phone number and delivery address |
 | `bob@foodapp.test` | customer | Has a phone number and delivery address |
 | `carol@foodapp.test` | customer | Deactivated account (`is_active: false`), for the deactivated-customer demo |
+
+To sign in, open http://127.0.0.1:8000/docs, run `POST /auth/login` with one of these accounts and copy the `token` from the response. Click **Authorize**, paste the token (without the word `Bearer`) and confirm, and `/docs` will send it with requests such as `POST /auth/logout`. Tokens are saved in `data/sessions.json`, which is created when the app runs and is ignored by git.
 
 ## Repository Structure
 ```
