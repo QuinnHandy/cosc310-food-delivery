@@ -1,0 +1,48 @@
+import secrets
+from datetime import datetime, timezone
+
+from app.core.security import verify_password
+from app.repositories.session_repository import SessionRepository
+from app.repositories.user_repository import UserRepository
+from app.schemas.auth import LoginResponse, Session
+
+
+class InvalidCredentialsError(Exception):
+    """Raised when an email, password or session token is not valid."""
+
+
+class AccountDeactivatedError(Exception):
+    """Raised when the right password is given for a deactivated account."""
+
+
+class AuthService:
+    """Sign-in and sign-out rules. Does no file access of its own."""
+
+    def __init__(
+        self, user_repository: UserRepository, session_repository: SessionRepository
+    ) -> None:
+        self._user_repository = user_repository
+        self._session_repository = session_repository
+
+    def login(self, email: str, password: str) -> LoginResponse:
+        """Raises InvalidCredentialsError or AccountDeactivatedError if sign-in is refused."""
+        user = self._user_repository.get_by_email(email)
+        # Same message for both cases, so a caller cannot tell which emails are registered.
+        if user is None or not verify_password(password, user.password_hash):
+            raise InvalidCredentialsError("Invalid email or password")
+        # Checked only after the password, so only the account holder learns it is deactivated.
+        if not user.is_active:
+            raise AccountDeactivatedError("This account has been deactivated")
+
+        session = Session(
+            token=secrets.token_urlsafe(32),
+            user_id=user.id,
+            created_at=datetime.now(timezone.utc),
+        )
+        self._session_repository.add(session)
+        return LoginResponse(token=session.token, user_id=user.id, role=user.role)
+
+    def logout(self, token: str) -> None:
+        """Raises InvalidCredentialsError if the token is not a current session."""
+        if not self._session_repository.delete(token):
+            raise InvalidCredentialsError("Invalid session token")
