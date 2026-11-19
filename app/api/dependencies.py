@@ -1,13 +1,20 @@
-"""Shared FastAPI dependencies for signing in and reading the caller's token."""
+"""Shared FastAPI dependencies for signing in, finding out who is calling, and checking roles."""
+
+from collections.abc import Callable
 
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from app.core.config import settings
-from app.repositories.restaurant_repository import RestaurantRepository
+from app.repositories.restaurant_repository import DataAccessError, RestaurantRepository
 from app.repositories.session_repository import SessionRepository
 from app.repositories.user_repository import UserRepository
-from app.services.auth_service import AuthService
+from app.schemas.user import User, UserRole
+from app.services.auth_service import (
+    AccountDeactivatedError,
+    AuthService,
+    InvalidCredentialsError,
+)
 
 bearer_scheme = HTTPBearer(auto_error=False, description="Token from POST /auth/login")
 
@@ -39,3 +46,48 @@ def get_bearer_token(
             headers={"WWW-Authenticate": "Bearer"},
         )
     return credentials.credentials
+
+
+def get_current_user(
+    token: str = Depends(get_bearer_token),
+    service: AuthService = Depends(get_auth_service),
+) -> User:
+    """Returns the signed-in user for the `Authorization: Bearer <token>` header.
+
+    Responds with 401 if the header is missing or malformed, or the token is not a current
+    session, and with 403 if the token's user has been deactivated.
+    """
+    try:
+        return service.get_user_for_token(token)
+    except InvalidCredentialsError as exc:
+        raise HTTPException(
+            status_code=401,
+            detail=str(exc),
+            headers={"WWW-Authenticate": "Bearer"},
+        ) from exc
+    except AccountDeactivatedError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except DataAccessError as exc:
+        # Fixed message on purpose: DataAccessError text can quote stored user records,
+        # including password hashes.
+        raise HTTPException(status_code=500, detail="Could not verify the sign-in") from exc
+
+
+def require_role(*roles: UserRole | str) -> Callable[..., User]:
+    """Builds a dependency that returns the signed-in user, or responds with 403 if their role
+    is not one of `roles`. Add it to a route with `Depends(require_role("admin"))`.
+
+    Includes everything `get_current_user` checks, so a missing or invalid token is still 401.
+    """
+    allowed = frozenset(UserRole(role) for role in roles)  # a typo in a role fails at import
+    if not allowed:
+        raise ValueError("require_role needs at least one role")
+
+    def check_role(user: User = Depends(get_current_user)) -> User:
+        if user.role not in allowed:
+            raise HTTPException(
+                status_code=403, detail="You do not have permission to do this"
+            )
+        return user
+
+    return check_role

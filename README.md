@@ -90,6 +90,23 @@ The seed data in `data/users.json` has these accounts. They all use the demo pas
 
 To sign in, open http://127.0.0.1:8000/docs, run `POST /auth/login` with one of these accounts and copy the `token` from the response. Click **Authorize**, paste the token (without the word `Bearer`) and confirm, and `/docs` will send it with requests such as `POST /auth/logout`. Tokens are saved in `data/sessions.json`, which is created when the app runs and is ignored by git.
 
+## Where authentication and authorization are enforced
+Both are checked in the backend, in two FastAPI dependencies in [app/api/dependencies.py](app/api/dependencies.py). The web pages are never trusted to decide who may do what.
+
+- **Authentication (who is calling): `get_current_user`.** It reads `Authorization: Bearer <token>`, looks the token up in `data/sessions.json` and loads that session's user from `data/users.json`. The lookup rules live in `AuthService.get_user_for_token` ([app/services/auth_service.py](app/services/auth_service.py)).
+- **Authorization (what they may do): `require_role(*roles)`.** It builds a dependency that runs `get_current_user` and then checks the user's role. A route opts in with `Depends(require_role("admin"))`.
+
+| Situation | Response |
+|---|---|
+| No `Authorization` header, a scheme other than `Bearer`, or an empty token | `401` with `WWW-Authenticate: Bearer` |
+| Token is not in `sessions.json` (never issued, or signed out), or its user no longer exists | `401` with `WWW-Authenticate: Bearer` |
+| Valid token but the account is deactivated (also if it was deactivated after signing in) | `403` |
+| Valid token and active account, but the role is not allowed | `403` |
+| Valid token, active account and allowed role | The request goes ahead |
+| Stored user or session data cannot be read | `500` with a fixed message that does not quote stored data |
+
+The checks run before the request body is validated, so a request without a valid token gets `401` even if its body is also wrong. In `/docs`, routes that use these dependencies show a padlock, and **Authorize** sends the token (see Demo accounts above). `tests/test_auth_dependencies.py` covers each row of the table on a small test-only app, using temporary data.
+
 ## Repository Structure
 ```
 app/
@@ -133,6 +150,7 @@ The test suite covers:
   - create → update → get in one flow (`test_restaurant_management_flow.py`)
   - viewing a restaurant's menu (`test_restaurant_menu.py`)
   - adding a menu item (`test_add_menu_item.py`)
+  - the auth dependencies: 401 and 403 cases for `get_current_user` and `require_role` (`test_auth_dependencies.py`)
 - **Services:** search, details and menu logic tested with a mocked repository (in `test_restaurant_search.py`, `test_restaurant_details.py` and `test_restaurant_menu.py`)
 - **Repositories**
   - loading restaurants and handling invalid JSON (`test_restaurant_repository.py`)
