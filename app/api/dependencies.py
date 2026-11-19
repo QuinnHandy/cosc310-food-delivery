@@ -5,6 +5,7 @@ from collections.abc import Callable
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
+from app.api.openapi import RestaurantId
 from app.core.config import settings
 from app.repositories.restaurant_repository import DataAccessError, RestaurantRepository
 from app.repositories.session_repository import SessionRepository
@@ -91,3 +92,24 @@ def require_role(*roles: UserRole | str) -> Callable[..., User]:
         return user
 
     return check_role
+
+
+def require_restaurant_access(
+    restaurant_id: RestaurantId,
+    user: User = Depends(get_current_user),
+) -> User:
+    """Lets an admin, or the owner of this restaurant (`user.restaurant_id == restaurant_id`),
+    through. Anyone else who is signed in gets 403. Use it on any route with a `restaurant_id`
+    path parameter that changes that restaurant or its menu.
+
+    Includes everything `get_current_user` checks, so a missing or invalid token is still 401.
+    This never looks the restaurant up, so a non-admin gets 403 for an ID that does not exist
+    (an admin gets the route's own 404), and a non-admin cannot tell which IDs exist.
+    """
+    is_admin = user.role == UserRole.admin
+    owns_restaurant = user.role == UserRole.restaurant_owner and user.restaurant_id == restaurant_id
+    if not (is_admin or owns_restaurant):
+        raise HTTPException(
+            status_code=403, detail="You do not have permission to change this restaurant"
+        )
+    return user
