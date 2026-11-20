@@ -37,6 +37,12 @@ def test_all_endpoints_are_documented():
         ("POST", "/restaurants/{restaurant_id}/menu"),
         ("POST", "/auth/login"),
         ("POST", "/auth/logout"),
+        ("POST", "/customers"),
+        ("GET", "/customers/me"),
+        ("PATCH", "/customers/me"),
+        ("POST", "/customers/me/deactivate"),
+        ("GET", "/customers/{customer_id}"),
+        ("POST", "/customers/{customer_id}/deactivate"),
     }
 
 
