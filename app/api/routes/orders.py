@@ -2,15 +2,14 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Path
 
-from app.api.dependencies import get_customer_service, require_role
+from app.api.dependencies import get_order_service, require_role
 from app.api.openapi import NOT_ALLOWED, NOT_SIGNED_IN, data_error
-from app.api.routes.checkout import get_order_repository
-from app.repositories.order_repository import OrderNotFoundError, OrderRepository
+from app.repositories.order_repository import OrderNotFoundError
 from app.repositories.restaurant_repository import DataAccessError
 from app.schemas.common import ErrorResponse
 from app.schemas.order import Order
 from app.schemas.user import User
-from app.services.customer_service import CustomerNotFoundError, CustomerService
+from app.services.customer_service import CustomerNotFoundError
 from app.services.order_service import OrderNotAllowedError, OrderService
 
 router = APIRouter(prefix="/orders", tags=["orders"])
@@ -28,13 +27,6 @@ CustomerId = Annotated[int, Path(description="ID of the customer.")]
 # Only customers have orders of their own to list; only admins can list someone else's.
 CustomerOnly = Annotated[User, Depends(require_role("customer"))]
 AdminOnly = Annotated[User, Depends(require_role("admin"))]
-
-
-def get_order_service(
-    order_repository: OrderRepository = Depends(get_order_repository),
-    customer_service: CustomerService = Depends(get_customer_service),
-) -> OrderService:
-    return OrderService(order_repository, customer_service)
 
 
 ORDER_NOT_FOUND = {
