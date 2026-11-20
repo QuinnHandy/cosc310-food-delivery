@@ -528,12 +528,13 @@ Everything is checked before anything is saved:
 
 ## Order History (#96)
 
-Added in M2. Both endpoints return `list[Order]` (the model from #93, shown under [Check out](#check-out)), **newest first** (highest `id` first). They only read: no file is changed.
+Added in M2. The two list endpoints return `list[Order]` (the model from #93, shown under [Check out](#check-out)), **newest first** (highest `id` first). They only read: no file is changed.
 
 | Method | Path | Who | Purpose | Success | Errors |
 |---|---|---|---|---|---|
 | GET | `/customers/me/orders` | customer | List my orders | 200 | 401, 403, 500 |
 | GET | `/customers/{customer_id}/orders` | admin | List any customer's orders | 200 | 401, 403, 404, 422, 500 |
+| GET | `/orders/{order_id}` | customer, admin | View one order (#95) | 200 | 401, 403, 404, 422, 500 |
 
 401 and 403 follow [Protected endpoints](#protected-endpoints). The 500 body is always `{"detail": "Could not access order data"}`.
 
@@ -561,6 +562,18 @@ Added in M2. Both endpoints return `list[Order]` (the model from #93, shown unde
 - `422`: `customer_id` is not an integer.
 
 `/customers/me/orders` is declared before `/customers/{customer_id}/orders` so that `me` is never read as an ID.
+
+### View one order (#95)
+`GET /orders/{order_id}` needs a signed-in, active **customer** or **admin** token and returns one `Order` (same shape as in the list above, with the item names, prices and totals from checkout). It only reads: no file is changed. A customer can open only their own orders; an admin can open any order, including a deactivated customer's.
+
+- `200`: the order.
+- `401`: no valid token, as in [Protected endpoints](#protected-endpoints).
+- `403`: a restaurant owner, a deactivated account, or a customer asking for **another customer's order** (`{"detail": "You do not have permission to view this order"}`).
+- `404`: `{"detail": "Order 99 not found"}` when no order has the ID.
+- `422`: `order_id` is not an integer.
+- `500`: `{"detail": "Could not access order data"}`.
+
+**Decision (#95):** another customer's order returns **403**, as the issue requires. Menu edits made after checkout never change a stored order, because the order keeps its own snapshot of names and prices.
 
 ## Existing Endpoints (unchanged from M0)
 

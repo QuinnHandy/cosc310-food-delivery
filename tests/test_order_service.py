@@ -5,12 +5,12 @@ import shutil
 import pytest
 
 from app.core.config import PROJECT_ROOT
-from app.repositories.order_repository import OrderRepository
+from app.repositories.order_repository import OrderNotFoundError, OrderRepository
 from app.repositories.restaurant_repository import RestaurantRepository
 from app.repositories.user_repository import UserRepository
 from app.schemas.order import OrderDraft, OrderLine
 from app.services.customer_service import CustomerNotFoundError, CustomerService
-from app.services.order_service import OrderService
+from app.services.order_service import OrderNotAllowedError, OrderService
 
 
 def make_draft(customer_id=4, unit_price=15.5, quantity=2) -> OrderDraft:
@@ -76,3 +76,37 @@ def test_admin_lookup_of_a_non_customer_raises_not_found(parts, customer_id):
     service, _, _ = parts
     with pytest.raises(CustomerNotFoundError):
         service.list_orders_for_customer(customer_id)
+
+
+# ---- get_order (#95) ----
+
+
+def test_customer_gets_their_own_order_with_its_snapshot(parts):
+    service, orders, users = parts
+    placed = orders.add(make_draft(customer_id=4))
+    order = service.get_order(users.get(4), placed.id)
+    assert order == placed
+    assert order.items[0].name == "Kung Pao Chicken"
+
+
+def test_customer_asking_for_another_customers_order_is_not_allowed(parts):
+    service, orders, users = parts
+    bobs = orders.add(make_draft(customer_id=5))
+    with pytest.raises(OrderNotAllowedError):
+        service.get_order(users.get(4), bobs.id)
+
+
+def test_admin_can_get_any_order(parts):
+    service, orders, users = parts
+    alices = orders.add(make_draft(customer_id=4))
+    bobs = orders.add(make_draft(customer_id=5))
+    assert service.get_order(users.get(1), alices.id) == alices
+    assert service.get_order(users.get(1), bobs.id) == bobs
+
+
+def test_get_order_with_an_unknown_id_raises_not_found(parts):
+    service, _, users = parts
+    with pytest.raises(OrderNotFoundError):
+        service.get_order(users.get(4), 99)
+    with pytest.raises(OrderNotFoundError):
+        service.get_order(users.get(1), 99)

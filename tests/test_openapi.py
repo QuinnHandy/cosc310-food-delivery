@@ -55,6 +55,7 @@ def test_all_endpoints_are_documented():
         ("POST", "/checkout"),
         ("GET", "/customers/me/orders"),
         ("GET", "/customers/{customer_id}/orders"),
+        ("GET", "/orders/{order_id}"),
     }
 
 

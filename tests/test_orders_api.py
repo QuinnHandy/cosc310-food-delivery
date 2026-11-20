@@ -1,8 +1,11 @@
-"""GET /customers/me/orders and GET /customers/{id}/orders (#96) through HTTP, on temporary data."""
+"""GET /customers/me/orders, GET /customers/{id}/orders (#96) and GET /orders/{id} (#95) through HTTP, on temporary data."""
 
 import pytest
 
+from app.repositories.menu_repository import MenuRepository
 from app.repositories.order_repository import OrderRepository
+from app.repositories.restaurant_repository import RestaurantRepository
+from app.schemas.menu import MenuItemUpdate
 from app_data_helpers import app_data  # noqa: F401  (pytest fixture)
 from test_order_service import make_draft
 
@@ -162,3 +165,123 @@ def test_403_is_checked_before_404(app_data):
     """A non-admin cannot learn which customer IDs exist."""
     response = app_data.client.get("/customers/99/orders", headers=app_data.headers["customer"])
     assert response.status_code == 403
+
+
+# ---- GET /orders/{order_id} (#95) ----
+
+
+def test_customer_views_their_own_order(app_data):
+    client, h = app_data.client, app_data.headers
+    seed_orders(app_data, 4)
+    response = client.get("/orders/1", headers=h["customer"])
+    assert response.status_code == 200
+    order = response.json()
+    assert order["id"] == 1 and order["customer_id"] == 4
+    assert order["restaurant_name"] == "Golden Dragon"
+    assert order["items"][0]["name"] == "Kung Pao Chicken"
+    assert (order["subtotal"], order["delivery_fee"], order["total"]) == (31.0, 4.99, 35.99)
+    assert order["status"] == "placed" and "created_at" in order
+
+
+def test_view_order_matches_the_same_order_in_the_list(app_data):
+    client, h = app_data.client, app_data.headers
+    seed_orders(app_data, 4, 4)
+    listed = {o["id"]: o for o in client.get("/customers/me/orders", headers=h["customer"]).json()}
+    assert client.get("/orders/2", headers=h["customer"]).json() == listed[2]
+
+
+def test_another_customers_order_returns_403(app_data):
+    client, h = app_data.client, app_data.headers
+    seed_orders(app_data, 5)  # Bob's order
+    response = client.get("/orders/1", headers=h["customer"])
+    assert response.status_code == 403
+    assert response.json() == {"detail": "You do not have permission to view this order"}
+
+
+def test_admin_can_view_any_order(app_data):
+    client, h = app_data.client, app_data.headers
+    seed_orders(app_data, 4, 5, 6)  # 6 is a deactivated customer
+    for order_id, customer_id in ((1, 4), (2, 5), (3, 6)):
+        response = client.get(f"/orders/{order_id}", headers=h["admin"])
+        assert response.status_code == 200
+        assert response.json()["customer_id"] == customer_id
+
+
+@pytest.mark.parametrize("who", ["customer", "admin"])
+def test_unknown_order_returns_404(app_data, who):
+    response = app_data.client.get("/orders/99", headers=app_data.headers[who])
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Order 99 not found"}
+
+
+def test_viewing_an_order_with_no_orders_file_returns_404(app_data):
+    (app_data.data_dir / "orders.json").unlink()
+    response = app_data.client.get("/orders/1", headers=app_data.headers["customer"])
+    assert response.status_code == 404
+
+
+def test_viewing_an_order_with_a_non_integer_id_returns_422(app_data):
+    response = app_data.client.get("/orders/abc", headers=app_data.headers["customer"])
+    assert response.status_code == 422
+
+
+def test_view_order_without_a_token_returns_401(api):
+    client, _ = api
+    response = client.get("/orders/1")
+    assert response.status_code == 401
+    assert response.headers["www-authenticate"] == "Bearer"
+
+
+def test_view_order_with_a_bad_token_returns_401(api):
+    client, _ = api
+    assert client.get("/orders/1", headers={"Authorization": "Bearer nope"}).status_code == 401
+
+
+@pytest.mark.parametrize("who", ["owner1", "deactivated"])
+def test_restaurant_owners_and_deactivated_customers_get_403(app_data, who):
+    seed_orders(app_data, 4)
+    response = app_data.client.get("/orders/1", headers=app_data.headers[who])
+    assert response.status_code == 403
+
+
+def test_checkout_then_view_shows_the_new_order(api):
+    client, h = api
+    client.post("/cart/items", json={"menu_item_id": 1, "quantity": 2}, headers=h["customer"])
+    placed = client.post("/checkout", headers=h["customer"]).json()
+    viewed = client.get(f"/orders/{placed['id']}", headers=h["customer"])
+    assert viewed.status_code == 200
+    assert viewed.json() == placed
+
+
+def test_changing_a_menu_item_afterwards_does_not_change_the_stored_order(app_data):
+    """Acceptance criterion: an order keeps the name and price from checkout."""
+    client, h = app_data.client, app_data.headers
+    client.post("/cart/items", json={"menu_item_id": 1, "quantity": 2}, headers=h["customer"])
+    client.post("/checkout", headers=h["customer"])
+    before = client.get("/orders/1", headers=h["customer"]).json()
+
+    restaurants = RestaurantRepository(app_data.data_dir / "restaurants.json")
+    menus = MenuRepository(app_data.data_dir / "menus.json", restaurants)
+    menus.update_item(1, 1, MenuItemUpdate(name="Renamed Dish", price=99.0))
+
+    after = client.get("/orders/1", headers=h["customer"]).json()
+    assert after == before
+    assert after["items"][0]["name"] == "Kung Pao Chicken"
+    assert after["items"][0]["unit_price"] == 15.5
+    assert after["total"] == 35.99
+
+
+def test_viewing_an_order_changes_no_files(app_data):
+    seed_orders(app_data, 4)
+    before = {p.name: p.read_bytes() for p in app_data.data_dir.glob("*.json")}
+    app_data.client.get("/orders/1", headers=app_data.headers["customer"])
+    app_data.client.get("/orders/1", headers=app_data.headers["admin"])
+    after = {p.name: p.read_bytes() for p in app_data.data_dir.glob("*.json")}
+    assert before == after
+
+
+def test_unreadable_order_data_on_view_returns_500_with_a_fixed_message(app_data):
+    (app_data.data_dir / "orders.json").write_text("not json", encoding="utf-8")
+    response = app_data.client.get("/orders/1", headers=app_data.headers["customer"])
+    assert response.status_code == 500
+    assert response.json() == {"detail": "Could not access order data"}
