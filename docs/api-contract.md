@@ -525,6 +525,25 @@ Everything is checked before anything is saved:
 
 An order is a snapshot. Changing a menu item's price or name afterwards never changes a stored order. The 500 body is `{"detail": "Could not access order data"}`.
 
+### List orders (#96)
+
+| Method | Path | Who |
+|---|---|---|
+| GET | `/customers/me/orders` | The signed-in customer: their own orders |
+| GET | `/customers/{customer_id}/orders` | An `admin`: any customer's orders |
+
+Both return **200** with a JSON array of `Order` objects (see Checkout), **newest first**, each with its item snapshot and totals. Only the requested customer's orders are included. A customer with no orders gets `200` and `[]`, never 404.
+
+| Rule | Status | Example `detail` |
+|---|---|---|
+| No valid token | 401 | `"Not authenticated"` |
+| `/customers/me/orders` called by an owner, an admin or a deactivated account | 403 | |
+| `/customers/{customer_id}/orders` called by anyone but an admin | 403 | |
+| `/customers/{customer_id}/orders` for an unknown ID (owner and admin IDs count as unknown) | 404 | `"Customer 99 not found"` |
+| A non-integer `customer_id` | 422 | field error list |
+
+The 500 body is `{"detail": "Could not access order data"}`.
+
 ## Existing Endpoints (unchanged from M0)
 
 | Method | Path | Response |

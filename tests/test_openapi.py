@@ -50,6 +50,8 @@ def test_all_endpoints_are_documented():
         ("DELETE", "/cart/items/{menu_item_id}"),
         ("POST", "/checkout"),
         ("GET", "/orders/{order_id}"),
+        ("GET", "/customers/me/orders"),
+        ("GET", "/customers/{customer_id}/orders"),
     }
 
 

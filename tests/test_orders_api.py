@@ -82,3 +82,81 @@ def test_get_order_is_documented(app_data):
     assert spec["summary"] == "Get one order"
     assert {"200", "401", "403", "404", "422", "500"} <= spec["responses"].keys()
     assert spec["parameters"][0]["description"]
+
+
+# ---- listing orders (#96) ----
+
+def checkout_as(app_data, who, item_id, quantity=1):
+    client, h = app_data.client, app_data.headers
+    client.post("/cart/items", json={"menu_item_id": item_id, "quantity": quantity}, headers=h[who])
+    response = client.post("/checkout", headers=h[who])
+    assert response.status_code == 201
+    return response.json()
+
+
+def test_my_orders_returns_only_my_orders_newest_first(app_data):
+    first = checkout_as(app_data, "customer", 1)
+    bobs = checkout_as(app_data, "customer2", 2)
+    second = checkout_as(app_data, "customer", 2)
+
+    response = app_data.client.get("/customers/me/orders", headers=app_data.headers["customer"])
+    assert response.status_code == 200
+    body = response.json()
+    assert [o["id"] for o in body] == [second["id"], first["id"]]
+    assert bobs["id"] not in [o["id"] for o in body]
+    assert body[0] == second  # full order, with its item snapshot and totals
+
+
+def test_my_orders_is_an_empty_list_not_404_when_there_are_none(app_data):
+    response = app_data.client.get("/customers/me/orders", headers=app_data.headers["customer"])
+    assert response.status_code == 200 and response.json() == []
+
+
+def test_my_orders_needs_a_signed_in_active_customer(app_data):
+    client, h = app_data.client, app_data.headers
+    assert client.get("/customers/me/orders").status_code == 401
+    for who in ("owner1", "admin", "deactivated"):
+        assert client.get("/customers/me/orders", headers=h[who]).status_code == 403, who
+
+
+def test_admin_can_list_a_customers_orders(app_data):
+    order = checkout_as(app_data, "customer", 1)
+    client, h = app_data.client, app_data.headers
+    response = client.get("/customers/4/orders", headers=h["admin"])
+    assert response.status_code == 200 and response.json() == [order]
+    assert client.get("/customers/5/orders", headers=h["admin"]).json() == []
+
+
+def test_admin_orders_for_unknown_customer_returns_404(app_data):
+    client, h = app_data.client, app_data.headers
+    response = client.get("/customers/99/orders", headers=h["admin"])
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Customer 99 not found"
+    assert client.get("/customers/2/orders", headers=h["admin"]).status_code == 404  # an owner, not a customer
+
+
+def test_customer_orders_by_id_is_admin_only_and_needs_a_token(app_data):
+    client, h = app_data.client, app_data.headers
+    assert client.get("/customers/4/orders").status_code == 401
+    for who in ("customer", "customer2", "owner1"):
+        assert client.get("/customers/4/orders", headers=h[who]).status_code == 403, who
+
+
+def test_non_integer_customer_id_returns_422(app_data):
+    response = app_data.client.get("/customers/abc/orders", headers=app_data.headers["admin"])
+    assert response.status_code == 422
+
+
+def test_me_is_not_mistaken_for_a_customer_id(app_data):
+    # /customers/me/orders must be the customer's own list, never the admin-by-ID route.
+    response = app_data.client.get("/customers/me/orders", headers=app_data.headers["customer"])
+    assert response.status_code == 200
+
+
+def test_order_lists_are_documented(app_data):
+    paths = app_data.client.get("/openapi.json").json()["paths"]
+    mine = paths["/customers/me/orders"]["get"]
+    assert mine["summary"] == "List my orders" and {"200", "401", "403", "500"} <= mine["responses"].keys()
+    by_id = paths["/customers/{customer_id}/orders"]["get"]
+    assert {"200", "401", "403", "404", "422", "500"} <= by_id["responses"].keys()
+    assert by_id["parameters"][0]["description"]
