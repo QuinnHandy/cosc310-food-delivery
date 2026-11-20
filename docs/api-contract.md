@@ -425,6 +425,55 @@ The account is kept, not deleted, so its ID, carts and orders stay valid. Afterw
 
 **Decision (#86):** deactivating an already-deactivated customer through the admin endpoint returns **409** `{"detail": "Customer 6 is already deactivated"}`. Through `/customers/me` it cannot happen: the deactivated customer's token already gets 403.
 
+## Shopping Cart
+
+Added in M2 (#88-#92). Every cart endpoint needs a signed-in, active **customer**: no token is 401; another role or a deactivated account is 403 (see [Protected endpoints](#protected-endpoints)). Each customer has at most one active cart, saved in `data/carts.json`.
+
+| Method | Path | Purpose | Success | Errors |
+|---|---|---|---|---|
+| GET | `/cart` | Get my active cart (created empty the first time) | 200 | 401, 403, 500 |
+| POST | `/cart/items` | Add an item (or increase its quantity) | 200 | 401, 403, 404, 409, 422, 500 |
+| PATCH | `/cart/items/{menu_item_id}` | Set the quantity of an item in the cart | 200 | 401, 403, 404, 422, 500 |
+| DELETE | `/cart/items/{menu_item_id}` | Remove an item | 200 | 401, 403, 404, 500 |
+| DELETE | `/cart/items` | Clear the cart | 200 | 401, 403, 500 |
+
+Every endpoint returns the whole cart as `CartResponse`. The 500 body is `{"detail": "Could not access cart data"}`.
+
+### CartResponse
+```json
+{
+  "id": 1, "customer_id": 4, "restaurant_id": 1, "status": "active",
+  "items": [
+    { "menu_item_id": 1, "name": "Kung Pao Chicken", "unit_price": 15.5, "quantity": 2, "line_total": 31.0, "is_available": true }
+  ],
+  "subtotal": 31.0, "delivery_fee": 4.99, "total": 35.99
+}
+```
+
+**Prices (#92).** The stored cart holds only `menu_item_id` and `quantity`. Every response reads the **current** menu price, so a price change shows on the next request. `line_total = unit_price × quantity`, `subtotal` is the sum of the lines, and `total = subtotal + delivery_fee`. The delivery fee is a flat $4.99 (`settings.delivery_fee` in `app/core/config.py`) and $0 for an empty cart. All amounts are calculated with `Decimal` and rounded to cents in `app/services/pricing.py`, which checkout should reuse. Requests have no price fields; an extra `price` field is ignored. `is_available` is false if the item has since become unavailable or been deactivated.
+
+### Add an item
+`POST /cart/items` with `CartItemAdd`: `{ "menu_item_id": 1, "quantity": 2 }`. `quantity` defaults to 1.
+
+| Rule | Status | Example `detail` |
+|---|---|---|
+| `quantity` must be a whole JSON number from 1 to 20 (`"2"`, `2.5` and `true` are refused) | 422 | field error list |
+| The line can't go above 20 in total | 422 | `"You can have at most 20 of one item in your cart (you already have 18)"` |
+| The menu item must exist | 404 | `"Menu item 99 not found"` |
+| The item must be available and not deactivated (`is_active`) | 409 | `"Beef Chow Mein is not available to order right now"` |
+| All items must come from one restaurant. An empty cart takes the restaurant of its first item | 409 | `"Your cart can only contain items from one restaurant. Clear it or remove those items first."` |
+
+Adding an item that is already in the cart increases its quantity. A refused request leaves the stored cart unchanged.
+
+### Change, remove, clear
+- `PATCH /cart/items/{menu_item_id}` with `{ "quantity": 3 }` sets the quantity (1 to 20, else 422).
+- `DELETE /cart/items/{menu_item_id}` removes the line. Removing the last line resets `restaurant_id` to null.
+- `DELETE /cart/items` empties the cart and resets `restaurant_id`, keeping the same cart `id`.
+- An item that is not in the cart returns 404 `"Menu item 3 is not in your cart"`.
+
+### MenuItem.is_active
+Added to `MenuItem` for the cart rule above; it defaults to `true`, so existing data still loads. Deactivating an item through the API (and hiding it from the customer menu) is #87.
+
 ## Existing Endpoints (unchanged from M0)
 
 | Method | Path | Response |
