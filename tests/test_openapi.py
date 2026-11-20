@@ -43,6 +43,11 @@ def test_all_endpoints_are_documented():
         ("POST", "/customers/me/deactivate"),
         ("GET", "/customers/{customer_id}"),
         ("POST", "/customers/{customer_id}/deactivate"),
+        ("GET", "/cart"),
+        ("POST", "/cart/items"),
+        ("DELETE", "/cart/items"),
+        ("PATCH", "/cart/items/{menu_item_id}"),
+        ("DELETE", "/cart/items/{menu_item_id}"),
     }
 
 

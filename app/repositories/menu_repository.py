@@ -56,6 +56,16 @@ class MenuRepository:
         items = [i for i in self._load_items() if i.restaurant_id == restaurant_id]
         return Menu(restaurant_id=restaurant_id, items=sorted(items, key=lambda i: i.id))
 
+    def get_item(self, item_id: int) -> MenuItem:
+        """Returns a menu item by its ID, whichever restaurant it belongs to.
+
+        Raises MenuItemNotFoundError if no item has this ID.
+        """
+        for item in self._load_items():
+            if item.id == item_id:
+                return item
+        raise MenuItemNotFoundError(f"Menu item {item_id} not found")
+
     def add_item(self, restaurant_id: int, new: MenuItemCreate) -> MenuItem:
         self._restaurant_repository.get(restaurant_id)
         items = self._load_items()

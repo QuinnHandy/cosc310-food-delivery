@@ -220,5 +220,6 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 
-# Sign-in tokens created at runtime
+# Data the app creates at runtime (a missing file means "none yet")
 data/sessions.json
+data/carts.json

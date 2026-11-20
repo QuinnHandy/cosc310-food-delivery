@@ -60,7 +60,11 @@ def test_get_menu_returns_all_items_for_restaurant(client):
     body = response.json()
     assert body["restaurant_id"] == 1
     assert [i["id"] for i in body["items"]] == [1, 3, 4]
-    assert body["items"][0] == item(1, 1, name="Margherita", category="Pizza", price=16.99)
+    # is_active (cart PR) defaults to true for stored items that don't have it yet.
+    assert body["items"][0] == {
+        **item(1, 1, name="Margherita", category="Pizza", price=16.99),
+        "is_active": True,
+    }
 
 
 def test_get_menu_includes_unavailable_items(client):
