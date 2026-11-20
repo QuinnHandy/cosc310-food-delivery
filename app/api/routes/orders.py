@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Path
 
 from app.api.dependencies import get_order_service, require_role
 from app.api.openapi import NOT_ALLOWED, NOT_SIGNED_IN, data_error
+from app.repositories.order_repository import OrderNotFoundError
 from app.repositories.restaurant_repository import DataAccessError
 from app.schemas.common import ErrorResponse
 from app.schemas.order import Order
@@ -14,12 +15,20 @@ from app.services.order_service import OrderService
 router = APIRouter(tags=["orders"])
 
 CustomerId = Annotated[int, Path(description="ID of the customer.")]
+OrderId = Annotated[int, Path(description="ID of the order.")]
 
 CUSTOMER_NOT_FOUND = {
     404: {
         "model": ErrorResponse,
         "description": "No customer has this ID (owner and admin IDs count as not found).",
         "content": {"application/json": {"example": {"detail": "Customer 99 not found"}}},
+    }
+}
+ORDER_NOT_FOUND = {
+    404: {
+        "model": ErrorResponse,
+        "description": "No order has this ID, or the order belongs to another customer.",
+        "content": {"application/json": {"example": {"detail": "Order 99 not found"}}},
     }
 }
 DATA_ERROR = data_error("Stored order or user data could not be read.")
@@ -74,6 +83,29 @@ def list_customer_orders(
     try:
         return service.list_orders_for_customer(customer_id)
     except CustomerNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except DataAccessError as exc:
+        raise _data_error(exc) from exc
+
+
+@router.get(
+    "/orders/{order_id}",
+    response_model=Order,
+    summary="View one of my orders",
+    responses={**NOT_SIGNED_IN, **NOT_ALLOWED, **ORDER_NOT_FOUND, **DATA_ERROR},
+)
+def get_my_order(
+    order_id: OrderId,
+    user: User = Depends(require_role("customer")),
+    service: OrderService = Depends(get_order_service),
+) -> Order:
+    """Returns one of the signed-in customer's orders with the item names and prices from checkout. Requires a `customer` token.
+
+    Returns `401` without a valid token, `403` for other roles or a deactivated account, `404` if no order has this ID **or the order belongs to another customer** (the two look the same, so IDs cannot be probed), and `422` if the ID is not an integer.
+    """
+    try:
+        return service.get_my_order(user, order_id)
+    except OrderNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except DataAccessError as exc:
         raise _data_error(exc) from exc

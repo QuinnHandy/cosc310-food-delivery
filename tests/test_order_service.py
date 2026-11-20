@@ -5,7 +5,7 @@ import shutil
 import pytest
 
 from app.core.config import PROJECT_ROOT
-from app.repositories.order_repository import OrderRepository
+from app.repositories.order_repository import OrderNotFoundError, OrderRepository
 from app.repositories.restaurant_repository import RestaurantRepository
 from app.repositories.user_repository import UserRepository
 from app.schemas.order import OrderDraft, OrderLine
@@ -76,3 +76,27 @@ def test_admin_lookup_of_a_non_customer_raises_not_found(parts, customer_id):
     service, _, _ = parts
     with pytest.raises(CustomerNotFoundError):
         service.list_orders_for_customer(customer_id)
+
+
+# ---- get_my_order (#95) ----
+
+
+def test_get_my_order_returns_my_order_with_its_snapshot(parts):
+    service, orders, users = parts
+    placed = orders.add(make_draft(customer_id=4))
+    order = service.get_my_order(users.get(4), placed.id)
+    assert order == placed
+    assert order.items[0].name == "Kung Pao Chicken"
+
+
+def test_get_my_order_of_another_customer_raises_not_found(parts):
+    service, orders, users = parts
+    bobs = orders.add(make_draft(customer_id=5))
+    with pytest.raises(OrderNotFoundError):
+        service.get_my_order(users.get(4), bobs.id)
+
+
+def test_get_my_order_with_an_unknown_id_raises_not_found(parts):
+    service, _, users = parts
+    with pytest.raises(OrderNotFoundError):
+        service.get_my_order(users.get(4), 99)
