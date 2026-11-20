@@ -474,6 +474,40 @@ Adding an item that is already in the cart increases its quantity. A refused req
 ### MenuItem.is_active
 Added to `MenuItem` for the cart rule above; it defaults to `true`, so existing data still loads. Deactivating an item through the API (and hiding it from the customer menu) is #87.
 
+## Checkout (#94)
+
+All checkout endpoints are for signed-in, active customers only (401 without a valid token, 403 for other roles or a deactivated account).
+
+### Check out
+`POST /checkout` has **no request body**. The cart, the delivery address and every price come from the server. Returns **201** with an `Order` (the model from #93):
+
+```json
+{
+  "id": 1, "customer_id": 4, "restaurant_id": 1, "restaurant_name": "Golden Dragon",
+  "delivery_address": "123 Main St, Kelowna, BC",
+  "items": [
+    { "menu_item_id": 1, "name": "Kung Pao Chicken", "unit_price": 15.5, "quantity": 2, "line_total": 31.0 }
+  ],
+  "subtotal": 31.0, "delivery_fee": 4.99, "total": 35.99,
+  "status": "placed", "created_at": "2026-11-20T09:00:00Z"
+}
+```
+
+Everything is checked before anything is saved:
+
+| Rule | Status | Example `detail` |
+|---|---|---|
+| The customer exists and is active | 403 | `"This account has been deactivated"` |
+| The customer has a delivery address | 422 | `"Add a delivery address to your profile before checking out"` |
+| The cart exists and has items | 409 | `"Your cart is empty"` |
+| The cart's restaurant still exists | 409 | `"The restaurant in your cart no longer exists. Clear your cart and start again."` |
+| Every item still exists, is active and is available (the message names the item) | 409 | `"Vegetable Spring Rolls is not available to order right now"` |
+| Every quantity is 1 to 20 | 422 | `"Quantity for menu item 1 must be 1 to 20"` |
+
+**Prices.** Recalculated from the **current** menu with the shared pricing function (`app/services/pricing.py`), so if a price changed after the item was added, the order uses the new price. The order stores a snapshot of each item's name and price; later menu edits never change it.
+
+**Order of writes.** The order is saved first, then the cart is marked `checked_out` (its lines are kept as a record). If saving the order fails (500 `{"detail": "Could not access order or cart data"}`), the cart is unchanged. The next `GET /cart` returns a new empty active cart with a new `id`.
+
 ## Existing Endpoints (unchanged from M0)
 
 | Method | Path | Response |
