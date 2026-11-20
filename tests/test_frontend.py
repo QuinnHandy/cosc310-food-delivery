@@ -59,11 +59,12 @@ def test_customer_page_links_to_owner_page_but_has_no_form():
 
 def test_api_script_uses_create_and_update_endpoints():
     script = client.get("/static/api.js").text
-    assert 'method: "POST"' in script
-    assert 'method: "PATCH"' in script
+    assert 'request("POST", "/restaurants"' in script
+    assert 'request("PATCH", `/restaurants/${id}`' in script
 
 
 def test_api_script_sends_the_sign_in_token_with_changes():
+    # tests/js/account.test.js checks the header is really sent on changes and not on reads.
     script = client.get("/static/api.js").text
     assert "Authorization: `Bearer ${token}`" in script
-    assert script.count("...authHeaders()") == 2  # create and update, not the public reads
+    assert "const headers = auth ? authHeaders() : {};" in script

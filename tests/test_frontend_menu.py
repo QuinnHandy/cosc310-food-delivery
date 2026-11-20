@@ -51,7 +51,7 @@ def test_details_panel_has_a_menu_section():
 
 def test_api_script_loads_the_menu_by_restaurant_id():
     script = page_client.get("/static/api.js").text
-    assert "async getMenu(restaurantId)" in script
+    assert "getMenu(restaurantId)" in script
     assert "/restaurants/${restaurantId}/menu" in script
 
 
