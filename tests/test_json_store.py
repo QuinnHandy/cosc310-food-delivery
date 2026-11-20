@@ -117,3 +117,34 @@ def test_old_import_paths_still_work():
     assert OldError is DataAccessError
     assert old_write is write_json_atomic
     assert os.path.exists(json_store.__file__)
+
+
+def test_validation_details_are_included_by_default(tmp_path):
+    (tmp_path / "things.json").write_text(json.dumps([{"id": 1, "name": 12345}]))
+    with pytest.raises(DataAccessError, match="12345"):
+        store(tmp_path).load()
+
+
+def test_hide_record_details_keeps_stored_values_out_of_the_message(tmp_path):
+    (tmp_path / "things.json").write_text(json.dumps([{"id": 1, "name": "secret-value-123"}, {"id": "x"}]))
+    with pytest.raises(DataAccessError) as info:
+        store(tmp_path, hide_record_details=True).load()
+    message = str(info.value)
+    assert "Thing data file has a record that does not match the Thing model" in message
+    assert str(tmp_path / "things.json") in message
+    assert "secret-value-123" not in message and "'x'" not in message
+    assert info.value.__cause__ is not None  # details kept for debugging
+
+
+def test_session_errors_never_quote_stored_tokens(tmp_path):
+    from app.repositories.session_repository import SessionRepository
+
+    token = "tok-SHOULD-NOT-LEAK"
+    (tmp_path / "sessions.json").write_text(
+        # user_id missing: Pydantic's message would quote the whole record, token included
+        json.dumps([{"token": token, "created_at": "2026-11-20T00:00:00Z"}])
+    )
+    with pytest.raises(DataAccessError) as info:
+        SessionRepository(tmp_path / "sessions.json").get(token)
+    assert token not in str(info.value)
+    assert "Session data file has a record that does not match the Session model" in str(info.value)
