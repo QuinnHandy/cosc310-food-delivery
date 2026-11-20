@@ -49,6 +49,7 @@ def test_all_endpoints_are_documented():
         ("PATCH", "/cart/items/{menu_item_id}"),
         ("DELETE", "/cart/items/{menu_item_id}"),
         ("POST", "/checkout"),
+        ("GET", "/orders/{order_id}"),
     }
 
 

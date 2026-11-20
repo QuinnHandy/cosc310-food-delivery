@@ -508,6 +508,23 @@ Everything is checked before anything is saved:
 
 **Order of writes.** The order is saved first, then the cart is marked `checked_out` (its lines are kept as a record). If saving the order fails (500 `{"detail": "Could not access order or cart data"}`), the cart is unchanged. The next `GET /cart` returns a new empty active cart with a new `id`.
 
+## Orders (#95)
+
+### View one order
+`GET /orders/{order_id}` returns **200** with the `Order` model from checkout (see above): the item snapshot (`name`, `unit_price`, `quantity`, `line_total` for each line) and the totals the customer was charged.
+
+| Who | Result |
+|---|---|
+| The customer who placed the order | 200 |
+| An `admin` | 200, for any order |
+| Another customer | 403 `"You can only view your own orders"` |
+| A restaurant owner, or a deactivated account | 403 |
+| Unknown order ID | 404 `"Order 99 not found"` |
+| No valid token | 401 |
+| A non-integer `order_id` | 422 (field error list) |
+
+An order is a snapshot. Changing a menu item's price or name afterwards never changes a stored order. The 500 body is `{"detail": "Could not access order data"}`.
+
 ## Existing Endpoints (unchanged from M0)
 
 | Method | Path | Response |
