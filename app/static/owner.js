@@ -11,6 +11,20 @@ const manageStatus = document.getElementById("manage-status");
 const listStatus = document.getElementById("list-status");
 const listEl = document.getElementById("restaurant-list");
 
+// Changes need a restaurant owner or admin. The backend enforces this; the notice only
+// tells the user up front, so they are not surprised by a 401/403 after filling the form.
+function showOwnerNotice() {
+  const notice = document.getElementById("owner-notice");
+  const session = Auth.session();
+  if (!Auth.token() || !session) {
+    notice.textContent = "Sign in as a restaurant owner or admin to add or change restaurants.";
+  } else if (session.role === "customer") {
+    notice.textContent = "You are signed in as a customer, so changes here will be refused.";
+  } else {
+    notice.textContent = "";
+  }
+}
+
 // null = the form creates a restaurant; a number = it updates that restaurant
 let editingId = null;
 
@@ -89,4 +103,5 @@ manageForm.addEventListener("submit", async (event) => {
   }
 });
 
+showOwnerNotice();
 loadRestaurants();
