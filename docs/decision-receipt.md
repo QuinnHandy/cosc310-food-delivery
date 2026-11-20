@@ -138,3 +138,38 @@ In `restaurant_repository.py`, the existing restaurant data is combined with the
 
 **Revisit when:** we need to support clearing fields, detect conflicting updates, or change how full-record updates should work.
 
+
+---
+
+# M2.1 Decision Receipt (Asher Nathan): One shared JSON store for every repository
+
+> Draft prepared with the PR for #108, to be confirmed and completed with the team in the M2 lab.
+
+- **Date:** 2026-11-19
+- **Status:** Proposed (PR for #108)
+- **Decided by:** Asher Nathan; to be reviewed by the team
+- **Milestone:** M2, Integrated Core System
+- **Issue / PR / tests:** #108 / PR for #108 / `tests/test_json_store.py`
+
+## Weakness found during integration
+M2 added three new kinds of stored data (users, sessions, carts), and orders are next. Each repository had its own copy of the same code: read the file, parse JSON, check it is a list, validate every record with a Pydantic model, write it back through a temp file, and compute `max(id) + 1`. Before this change that code was repeated across `restaurant_repository.py`, `menu_repository.py`, `cart_repository.py` and `session_repository.py`, and every new repository would have copied it again.
+
+Integration also exposed a real defect in the copied save code. `write_json_atomic` only caught `OSError`, so a record that could not be serialized raised a raw `TypeError` (an unhandled 500 instead of our `DataAccessError` → 500 with a message), and it left a stray `.tmp` file in `data/`. A failed `os.replace` also left its temp file behind. Checked against the old code at `abe81d9`: `raised TypeError … stray temp files: ['tmph1_ns4xx.tmp']`.
+
+## Options considered
+1. **Shared `JsonStore` helper (chosen):** one generic class for load/validate/save/next-ID; each repository keeps only its own rules.
+2. **Abstract base repository class:** repositories inherit `get`, `add`, `update`. Rejected for now: our repositories differ a lot (menu items are scoped to a restaurant, carts have one-active-per-customer, users check emails and restaurant links), so a base class would need many hooks or overrides.
+3. **Leave the copies:** least work today, but every new repository (orders next) copies the code and its defect again.
+
+## Decision
+`app/repositories/json_store.py` contains `JsonStore(path, Model, label, missing_ok=False, dump=None)` with `load()`, `save()` and `require_unique_ids()`, plus `next_id()`, `write_json_atomic()` and `DataAccessError`. The restaurant, menu, cart and session repositories now use it. `restaurant_repository.py` still re-exports `DataAccessError` and `write_json_atomic`, so no other import had to change. `write_json_atomic` now serializes before it creates the temp file, and removes the temp file if the swap fails.
+
+## Evidence
+- **Before → after:** the four repositories went from 324 to 204 lines (diff −151 / +30); the shared `json_store.py` is 124 lines including docs.
+- **Behaviour unchanged:** the full existing suite passed with no test changes (432 before → 432 after the refactor, then 448 with the new tests).
+- **Tests for the new code:** `tests/test_json_store.py`: round trip, stable and never-reused IDs, **failed serialization leaves the old file intact and no temp file**, **failed swap leaves the old file and no temp file**, missing-file rules, invalid-file errors, and a check that the four repositories no longer contain their own `json.loads`/`tempfile` code.
+
+## Consequences
+- New repositories (orders, #93) need only their own rules plus a `JsonStore` line.
+- `UserRepository` still has its own copy, because it writes `id` first and #79/#81 were in review. Moving it over (with `dump=`) is a small follow-up.
+- Error messages now come from one place, so they read the same for every data file.
