@@ -1,4 +1,6 @@
-"""Shared FastAPI dependencies for signing in, finding out who is calling, and checking roles."""
+"""Shared FastAPI dependencies: repository and service providers, signing in, finding out who is
+calling, and checking roles. Routes import providers from here instead of defining their own, so a
+test can override each one in a single place with `app.dependency_overrides`."""
 
 from collections.abc import Callable
 
@@ -7,11 +9,16 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from app.api.openapi import RestaurantId
 from app.core.config import settings
+from app.repositories.cart_repository import CartRepository
+from app.repositories.menu_repository import MenuRepository
 from app.repositories.restaurant_repository import DataAccessError, RestaurantRepository
 from app.repositories.session_repository import SessionRepository
 from app.repositories.user_repository import UserRepository
 from app.schemas.user import User, UserRole
+from app.services.cart_service import CartService
 from app.services.customer_service import CustomerService
+from app.services.menu_service import MenuService
+from app.services.restaurant_service import RestaurantService
 from app.services.auth_service import (
     AccountDeactivatedError,
     AuthService,
@@ -41,6 +48,39 @@ def get_customer_service(
     user_repository: UserRepository = Depends(get_user_repository),
 ) -> CustomerService:
     return CustomerService(user_repository)
+
+
+def get_restaurant_repository() -> RestaurantRepository:
+    return RestaurantRepository(settings.data_dir / "restaurants.json")
+
+
+def get_restaurant_service(
+    repository: RestaurantRepository = Depends(get_restaurant_repository),
+) -> RestaurantService:
+    return RestaurantService(repository)
+
+
+def get_menu_repository(
+    restaurant_repository: RestaurantRepository = Depends(get_restaurant_repository),
+) -> MenuRepository:
+    return MenuRepository(settings.data_dir / "menus.json", restaurant_repository)
+
+
+def get_menu_service(
+    repository: MenuRepository = Depends(get_menu_repository),
+) -> MenuService:
+    return MenuService(repository)
+
+
+def get_cart_repository() -> CartRepository:
+    return CartRepository(settings.data_dir / "carts.json")
+
+
+def get_cart_service(
+    cart_repository: CartRepository = Depends(get_cart_repository),
+    menu_repository: MenuRepository = Depends(get_menu_repository),
+) -> CartService:
+    return CartService(cart_repository, menu_repository, settings.delivery_fee)
 
 
 def get_bearer_token(

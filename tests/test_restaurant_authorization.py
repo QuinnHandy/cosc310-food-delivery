@@ -10,7 +10,7 @@ import pytest
 from auth_helpers import auth  # noqa: F401  (pytest fixture)
 from fastapi.testclient import TestClient
 
-from app.api.routes import menus, restaurants
+from app.api.dependencies import get_menu_repository, get_restaurant_repository
 from app.main import app
 from app.repositories.menu_repository import MenuRepository
 from app.repositories.restaurant_repository import RestaurantRepository
@@ -49,15 +49,13 @@ def env(tmp_path, auth):
     def menu_repository():
         return MenuRepository(menus_file, restaurant_repository())
 
-    app.dependency_overrides[restaurants.get_restaurant_repository] = restaurant_repository
-    app.dependency_overrides[restaurants.get_menu_repository] = menu_repository
-    app.dependency_overrides[menus.get_menu_repository] = menu_repository
+    app.dependency_overrides[get_restaurant_repository] = restaurant_repository
+    app.dependency_overrides[get_menu_repository] = menu_repository
     try:
         yield TestClient(app), restaurants_file, menus_file
     finally:
-        app.dependency_overrides.pop(restaurants.get_restaurant_repository, None)
-        app.dependency_overrides.pop(restaurants.get_menu_repository, None)
-        app.dependency_overrides.pop(menus.get_menu_repository, None)
+        app.dependency_overrides.pop(get_restaurant_repository, None)
+        app.dependency_overrides.pop(get_menu_repository, None)
 
 
 def saved(path):

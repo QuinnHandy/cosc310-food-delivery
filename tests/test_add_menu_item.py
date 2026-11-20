@@ -6,7 +6,7 @@ from auth_helpers import auth  # noqa: F401  (pytest fixture)
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.api.routes.menus import get_menu_repository
+from app.api.dependencies import get_menu_repository
 from app.repositories.menu_repository import MenuRepository
 from app.repositories.restaurant_repository import RestaurantRepository
 
