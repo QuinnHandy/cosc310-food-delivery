@@ -1,0 +1,181 @@
+from decimal import Decimal
+
+from app.repositories.cart_repository import CartRepository
+from app.repositories.menu_repository import MenuItemNotFoundError, MenuRepository
+from app.schemas.cart import (
+    MAX_QUANTITY,
+    Cart,
+    CartLine,
+    CartLineResponse,
+    CartResponse,
+)
+from app.schemas.menu import MenuItem
+from app.schemas.user import User, UserRole
+from app.services.pricing import price_lines
+
+
+class CustomerNotAllowedError(Exception):
+    """Raised when the user is not an active customer (deactivated, or another role)."""
+
+
+class MenuItemUnavailableError(Exception):
+    """Raised when adding an item that is unavailable or deactivated."""
+
+
+class DifferentRestaurantError(Exception):
+    """Raised when adding an item from a restaurant other than the one already in the cart."""
+
+
+class QuantityLimitError(Exception):
+    """Raised when a line would go above the maximum quantity."""
+
+
+class CartItemNotInCartError(Exception):
+    """Raised when changing or removing a menu item that is not in the cart."""
+
+
+class CartService:
+    """Shopping-cart rules (#89-#92). Does no file access of its own.
+
+    Every change is validated first and saved once at the end, so a refused request never
+    changes the stored cart. Totals always use the current menu prices (see pricing.py).
+    """
+
+    def __init__(
+        self,
+        cart_repository: CartRepository,
+        menu_repository: MenuRepository,
+        delivery_fee: Decimal,
+    ) -> None:
+        self._carts = cart_repository
+        self._menus = menu_repository
+        self._delivery_fee = delivery_fee
+
+    # ---- reading ----
+
+    def get_cart(self, customer: User) -> CartResponse:
+        """Returns the customer's active cart, creating an empty one the first time."""
+        return self.to_response(self._active_cart(customer))
+
+    def get_active_cart(self, customer: User) -> Cart:
+        """The stored active cart (created if missing), for other services such as checkout."""
+        return self._active_cart(customer)
+
+    # ---- changes ----
+
+    def add_item(self, customer: User, menu_item_id: int, quantity: int) -> CartResponse:
+        """Adds `quantity` of an item, or increases it if the item is already in the cart.
+
+        Raises MenuItemNotFoundError, MenuItemUnavailableError, DifferentRestaurantError or
+        QuantityLimitError; the cart is unchanged when any of them is raised.
+        """
+        cart = self._active_cart(customer)
+        item = self._menus.get_item(menu_item_id)
+        if not item.is_available or not item.is_active:
+            raise MenuItemUnavailableError(f"{item.name} is not available to order right now")
+        if cart.restaurant_id is not None and cart.restaurant_id != item.restaurant_id:
+            raise DifferentRestaurantError(
+                "Your cart can only contain items from one restaurant. "
+                "Clear it or remove those items first."
+            )
+
+        lines = [line.model_copy() for line in cart.items]
+        existing = next((line for line in lines if line.menu_item_id == menu_item_id), None)
+        new_quantity = quantity + (existing.quantity if existing else 0)
+        if new_quantity > MAX_QUANTITY:
+            raise QuantityLimitError(
+                f"You can have at most {MAX_QUANTITY} of one item in your cart "
+                f"(you already have {existing.quantity if existing else 0})"
+            )
+        if existing:
+            existing.quantity = new_quantity
+        else:
+            lines.append(CartLine(menu_item_id=menu_item_id, quantity=quantity))
+
+        updated = cart.model_copy(update={"items": lines, "restaurant_id": item.restaurant_id})
+        return self.to_response(self._carts.save(updated))
+
+    def set_quantity(self, customer: User, menu_item_id: int, quantity: int) -> CartResponse:
+        """Sets the quantity of an item already in the cart. Raises CartItemNotInCartError."""
+        cart = self._active_cart(customer)
+        self._require_line(cart, menu_item_id)
+        lines = [
+            CartLine(menu_item_id=line.menu_item_id, quantity=quantity)
+            if line.menu_item_id == menu_item_id
+            else line
+            for line in cart.items
+        ]
+        return self.to_response(self._carts.save(cart.model_copy(update={"items": lines})))
+
+    def remove_item(self, customer: User, menu_item_id: int) -> CartResponse:
+        """Removes one line. An emptied cart forgets its restaurant. Raises CartItemNotInCartError."""
+        cart = self._active_cart(customer)
+        self._require_line(cart, menu_item_id)
+        lines = [line for line in cart.items if line.menu_item_id != menu_item_id]
+        restaurant_id = cart.restaurant_id if lines else None
+        updated = cart.model_copy(update={"items": lines, "restaurant_id": restaurant_id})
+        return self.to_response(self._carts.save(updated))
+
+    def clear(self, customer: User) -> CartResponse:
+        """Empties the cart, so items from any restaurant can be added afterwards."""
+        cart = self._active_cart(customer)
+        updated = cart.model_copy(update={"items": [], "restaurant_id": None})
+        return self.to_response(self._carts.save(updated))
+
+    # ---- pricing ----
+
+    def to_response(self, cart: Cart) -> CartResponse:
+        """Prices a cart with the current menu: names, unit prices, line totals and totals."""
+        items: list[MenuItem] = [self._menus.get_item(line.menu_item_id) for line in cart.items]
+        breakdown = price_lines(
+            [(item.price, line.quantity) for item, line in zip(items, cart.items)],
+            self._delivery_fee,
+        )
+        lines = [
+            CartLineResponse(
+                menu_item_id=line.menu_item_id,
+                name=item.name,
+                unit_price=float(priced.unit_price),
+                quantity=line.quantity,
+                line_total=float(priced.line_total),
+                is_available=item.is_available and item.is_active,
+            )
+            for item, line, priced in zip(items, cart.items, breakdown.lines)
+        ]
+        return CartResponse(
+            id=cart.id,
+            customer_id=cart.customer_id,
+            restaurant_id=cart.restaurant_id,
+            status=cart.status,
+            items=lines,
+            subtotal=float(breakdown.subtotal),
+            delivery_fee=float(breakdown.delivery_fee),
+            total=float(breakdown.total),
+        )
+
+    # ---- helpers ----
+
+    def _active_cart(self, customer: User) -> Cart:
+        # Checked here as well as by the route's auth dependency, so the rule holds for any
+        # caller of the service, not only HTTP requests.
+        if customer.role != UserRole.customer:
+            raise CustomerNotAllowedError("Only customers have a cart")
+        if not customer.is_active:
+            raise CustomerNotAllowedError("This account has been deactivated")
+        return self._carts.get_active_for_customer(customer.id) or self._carts.add(customer.id)
+
+    @staticmethod
+    def _require_line(cart: Cart, menu_item_id: int) -> None:
+        if not any(line.menu_item_id == menu_item_id for line in cart.items):
+            raise CartItemNotInCartError(f"Menu item {menu_item_id} is not in your cart")
+
+
+__all__ = [
+    "CartService",
+    "CartItemNotInCartError",
+    "CustomerNotAllowedError",
+    "DifferentRestaurantError",
+    "MenuItemNotFoundError",
+    "MenuItemUnavailableError",
+    "QuantityLimitError",
+]
