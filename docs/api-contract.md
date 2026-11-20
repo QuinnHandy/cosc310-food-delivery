@@ -508,6 +508,42 @@ Everything is checked before anything is saved:
 
 **Order of writes.** The order is saved first, then the cart is marked `checked_out` (its lines are kept as a record). If saving the order fails (500 `{"detail": "Could not access order or cart data"}`), the cart is unchanged. The next `GET /cart` returns a new empty active cart with a new `id`.
 
+## Order History (#96)
+
+Added in M2. Both endpoints return `list[Order]` (the model from #93, shown under [Check out](#check-out)), **newest first** (highest `id` first). They only read: no file is changed.
+
+| Method | Path | Who | Purpose | Success | Errors |
+|---|---|---|---|---|---|
+| GET | `/customers/me/orders` | customer | List my orders | 200 | 401, 403, 500 |
+| GET | `/customers/{customer_id}/orders` | admin | List any customer's orders | 200 | 401, 403, 404, 422, 500 |
+
+401 and 403 follow [Protected endpoints](#protected-endpoints). The 500 body is always `{"detail": "Could not access order data"}`.
+
+### List my orders
+`GET /customers/me/orders` needs a signed-in, active **customer** token. The customer ID comes from the token, never from the request, so a customer can only ever see their own orders. Another role or a deactivated account gets 403.
+
+```json
+[
+  { "id": 3, "customer_id": 4, "restaurant_id": 1, "restaurant_name": "Golden Dragon",
+    "delivery_address": "123 Main St, Kelowna, BC",
+    "items": [ { "menu_item_id": 1, "name": "Kung Pao Chicken", "unit_price": 15.5, "quantity": 3, "line_total": 46.5 } ],
+    "subtotal": 46.5, "delivery_fee": 4.99, "total": 51.49,
+    "status": "placed", "created_at": "2026-11-20T10:15:00Z" },
+  { "id": 1, "customer_id": 4, "...": "..." }
+]
+```
+
+**Decision (#96):** a customer with no orders gets **200 with an empty list `[]`**, not 404, because "no orders yet" is a normal state, not a missing resource. The same holds if `data/orders.json` does not exist yet.
+
+### List a customer's orders (admin)
+`GET /customers/{customer_id}/orders` needs an `admin` token (403 for any other role, including the customer whose orders they are; that check comes before the 404, so a non-admin cannot find out which IDs exist).
+
+- `200`: the customer's orders, newest first, or `[]` if they have none. A deactivated customer's orders can still be read.
+- `404`: `{"detail": "Customer 99 not found"}` when no customer has the ID. Restaurant-owner and admin IDs count as not found, the same as `GET /customers/{customer_id}`.
+- `422`: `customer_id` is not an integer.
+
+`/customers/me/orders` is declared before `/customers/{customer_id}/orders` so that `me` is never read as an ID.
+
 ## Existing Endpoints (unchanged from M0)
 
 | Method | Path | Response |
