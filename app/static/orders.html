@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Food Delivery - My Orders</title>
+    <link rel="icon" href="data:,">
+</head>
+
+<body>
+    <h1>My orders</h1>
+    <p><a href="/">Back to restaurants</a></p>
+    <p id="session-bar"></p>
+
+    <p id="orders-status" role="status"></p>
+    <ul id="orders-list"></ul>
+
+    <section id="order-detail" hidden>
+        <div id="order-detail-body"></div>
+    </section>
+
+    <script src="/static/api.js"></script>
+    <script src="/static/session.js"></script>
+    <script src="/static/order-view.js"></script>
+    <script src="/static/orders.js"></script>
+</body>
+
+</html>
