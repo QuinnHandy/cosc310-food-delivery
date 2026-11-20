@@ -9,7 +9,7 @@ import json
 import pytest
 from fastapi.testclient import TestClient
 
-from app.api.routes.restaurants import get_menu_repository
+from app.api.dependencies import get_menu_repository
 from app.main import app
 from app.repositories.menu_repository import MenuRepository
 from app.repositories.restaurant_repository import RestaurantRepository
