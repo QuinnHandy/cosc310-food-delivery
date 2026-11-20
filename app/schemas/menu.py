@@ -40,6 +40,13 @@ class MenuItem(MenuItemCreate):
 
     id: int = Field(description="Server-assigned unique ID across all menu items. Never changes.")
     restaurant_id: int = Field(description="ID of the restaurant this item belongs to.")
+    is_active: bool = Field(
+        default=True,
+        description=(
+            "False means the item has been deactivated (soft-deleted). It stays stored because "
+            "carts and orders refer to its ID, but it can no longer be added to a cart."
+        ),
+    )
 
 
 class Menu(BaseModel):
