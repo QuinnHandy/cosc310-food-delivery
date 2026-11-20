@@ -6,6 +6,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Food Delivery - Restaurants</title>
     <link rel="icon" href="data:,">
+    <style>
+        .unavailable { color: #777; }
+    </style>
 </head>
 
 <body>
@@ -33,6 +36,10 @@
         <h2 id="details-name"></h2>
         <p>Cuisine: <span id="details-cuisine"></span></p>
         <p>Restaurant ID: <span id="details-id"></span></p>
+
+        <h3>Menu</h3>
+        <p id="menu-status" role="status"></p>
+        <ul id="menu-list"></ul>
     </section>
 
     <script src="/static/api.js"></script>

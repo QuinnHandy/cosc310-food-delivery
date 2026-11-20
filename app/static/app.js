@@ -5,6 +5,49 @@ const statusEl = document.getElementById("status");
 const listEl = document.getElementById("restaurant-list");
 const detailsEl = document.getElementById("details");
 
+const menuStatusEl = document.getElementById("menu-status");
+const menuListEl = document.getElementById("menu-list");
+
+// Price as sent by the API, shown with two decimals. Display only; no maths is done on it.
+function formatPrice(price) {
+  return `$${Number(price).toFixed(2)}`;
+}
+
+// One menu item as a list entry: name, price, availability, then the description.
+function menuItemElement(menuItem) {
+  const item = document.createElement("li");
+  item.className = menuItem.is_available ? "menu-item" : "menu-item unavailable";
+  const heading = document.createElement("strong");
+  heading.textContent = menuItem.name;
+  item.append(heading, ` ${formatPrice(menuItem.price)}`);
+  if (menuItem.category) item.append(` (${menuItem.category})`);
+  if (!menuItem.is_available) item.append(" - currently unavailable");
+  if (menuItem.description) {
+    const description = document.createElement("div");
+    description.textContent = menuItem.description;
+    item.appendChild(description);
+  }
+  return item;
+}
+
+async function showMenu(restaurantId) {
+  menuListEl.replaceChildren();
+  menuStatusEl.textContent = "Loading menu...";
+  try {
+    const menu = await API.getMenu(restaurantId);
+    if (menu.items.length === 0) {
+      menuStatusEl.textContent = "This restaurant has no menu items yet.";
+      return;
+    }
+    menuStatusEl.textContent = "";
+    for (const menuItem of menu.items) {
+      menuListEl.appendChild(menuItemElement(menuItem));
+    }
+  } catch (error) {
+    menuStatusEl.textContent = `Could not load the menu: ${error.message}`;
+  }
+}
+
 async function showDetails(id) {
   statusEl.textContent = "";
   try {
@@ -16,7 +59,9 @@ async function showDetails(id) {
   } catch (error) {
     detailsEl.hidden = true;
     statusEl.textContent = error.message;
+    return;
   }
+  await showMenu(id);
 }
 
 let latestRequest = 0;
