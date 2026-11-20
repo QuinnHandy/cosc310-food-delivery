@@ -17,7 +17,7 @@ This document defines every M1 endpoint. The implementation, the tests, and the 
 | 200 | Success |
 | 201 | Resource created |
 | 401 | Wrong email or password, or a missing or invalid bearer token |
-| 403 | The account has been deactivated |
+| 403 | The account has been deactivated, or the signed-in user's role is not allowed |
 | 404 | Restaurant or menu item not found |
 | 422 | Invalid request (missing field, wrong type, failed validation) |
 | 500 | Stored data could not be read |
@@ -347,6 +347,20 @@ Tokens are random, are saved in `data/sessions.json` with the user's ID, and kee
 **Errors**
 - `401`: `{"detail": "Not authenticated"}` if the header is missing or is not a bearer token, or `{"detail": "Invalid session token"}` if the token is unknown or already signed out. The response includes `WWW-Authenticate: Bearer`.
 - `500`: `{"detail": "Could not complete sign out"}`. Stored session data could not be read or saved.
+
+### Protected endpoints
+
+Added in M2 (#81). An endpoint that needs a signed-in user checks the token before anything else, including the request body:
+
+| Situation | Status | Body |
+|---|---|---|
+| No `Authorization` header, a scheme other than `Bearer`, or an empty token | 401 | `{"detail": "Not authenticated"}` |
+| The token is unknown or signed out, or its user no longer exists | 401 | `{"detail": "Invalid session token"}` |
+| The user's account is deactivated (also if it was deactivated after signing in) | 403 | `{"detail": "This account has been deactivated"}` |
+| The endpoint is limited to certain roles and the user has another one | 403 | `{"detail": "You do not have permission to do this"}` |
+| Stored user or session data cannot be read | 500 | `{"detail": "Could not verify the sign-in"}` |
+
+Every 401 includes `WWW-Authenticate: Bearer`. Protected endpoints show the `HTTPBearer` security scheme in OpenAPI.
 
 ## Existing Endpoints (unchanged from M0)
 
