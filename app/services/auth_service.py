@@ -3,8 +3,9 @@ from datetime import datetime, timezone
 
 from app.core.security import hash_password, verify_password
 from app.repositories.session_repository import SessionRepository
-from app.repositories.user_repository import UserRepository
+from app.repositories.user_repository import UserNotFoundError, UserRepository
 from app.schemas.auth import LoginResponse, Session
+from app.schemas.user import User
 
 # Hash of a random value nobody knows. Checked when an email has no account.
 _DUMMY_HASH = hash_password(secrets.token_urlsafe(32))
@@ -47,6 +48,23 @@ class AuthService:
         )
         self._session_repository.add(session)
         return LoginResponse(token=session.token, user_id=user.id, role=user.role)
+
+    def get_user_for_token(self, token: str) -> User:
+        """Returns the user a session token belongs to.
+
+        Raises InvalidCredentialsError if the token is not a current session (or its user no
+        longer exists), and AccountDeactivatedError if the user has been deactivated since.
+        """
+        session = self._session_repository.get(token)
+        if session is None:
+            raise InvalidCredentialsError("Invalid session token")
+        try:
+            user = self._user_repository.get(session.user_id)
+        except UserNotFoundError as exc:
+            raise InvalidCredentialsError("Invalid session token") from exc
+        if not user.is_active:
+            raise AccountDeactivatedError("This account has been deactivated")
+        return user
 
     def logout(self, token: str) -> None:
         """Raises InvalidCredentialsError if the token is not a current session."""

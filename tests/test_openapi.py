@@ -118,3 +118,35 @@ def test_logout_documents_bearer_security():
 def test_schema_fields_have_descriptions(name):
     for field, spec in SCHEMA["components"]["schemas"][name]["properties"].items():
         assert spec.get("description", "").strip(), f"{name}.{field}"
+
+
+# Routes that change a restaurant or its menu: they need a token (401) and the right user (403).
+PROTECTED_ROUTES = [
+    ("post", "/restaurants"),
+    ("patch", "/restaurants/{restaurant_id}"),
+    ("post", "/restaurants/{restaurant_id}/menu"),
+]
+PUBLIC_ROUTES = [
+    ("get", "/restaurants"),
+    ("get", "/restaurants/{restaurant_id}"),
+    ("get", "/restaurants/{restaurant_id}/menu"),
+]
+
+
+@pytest.mark.parametrize("method, path", PROTECTED_ROUTES, ids=operation_id)
+def test_protected_routes_document_401_403_and_bearer_security(method, path):
+    operation = SCHEMA["paths"][path][method]
+    for status in ("401", "403"):
+        response = operation["responses"][status]
+        assert response["description"]
+        assert response["content"]["application/json"]["schema"] == {
+            "$ref": "#/components/schemas/ErrorResponse"
+        }
+    assert operation["security"] == [{"HTTPBearer": []}]
+
+
+@pytest.mark.parametrize("method, path", PUBLIC_ROUTES, ids=operation_id)
+def test_public_routes_need_no_token(method, path):
+    operation = SCHEMA["paths"][path][method]
+    assert "security" not in operation
+    assert not {"401", "403"} & set(operation["responses"])

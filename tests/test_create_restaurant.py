@@ -1,5 +1,6 @@
 import json
 
+from auth_helpers import auth  # noqa: F401  (pytest fixture)
 from fastapi.testclient import TestClient
 
 from app.api.routes.restaurants import get_restaurant_repository
@@ -7,7 +8,7 @@ from app.main import app
 from app.repositories.restaurant_repository import RestaurantRepository
 
 
-def test_create_restaurant(tmp_path):
+def test_create_restaurant(tmp_path, auth):
     # Create isolated test data
     data_file = tmp_path / "restaurants.json"
     data_file.write_text("[]", encoding="utf-8")
@@ -24,6 +25,7 @@ def test_create_restaurant(tmp_path):
         response = client.post(
             "/restaurants",
             json={"name": "Pizza Palace", "cuisine": "Italian"},
+            headers=auth["owner1"],
         )
 
         assert response.status_code == 201
@@ -43,12 +45,13 @@ def test_create_restaurant(tmp_path):
     finally:
         app.dependency_overrides.clear()
 
-def test_create_restaurant_empty_name():
+def test_create_restaurant_empty_name(auth):
     client = TestClient(app)
 
     response = client.post(
         "/restaurants",
         json={"name": "", "cuisine": "Italian"},
+        headers=auth["owner1"],
     )
 
     assert response.status_code == 422

@@ -2,6 +2,7 @@
 import json
 
 import pytest
+from auth_helpers import auth  # noqa: F401  (pytest fixture)
 from fastapi.testclient import TestClient
 
 from app.api.routes.restaurants import get_restaurant_repository
@@ -30,12 +31,13 @@ def client(tmp_path):
         app.dependency_overrides.pop(get_restaurant_repository, None)
 
 
-def test_update_restaurant(client):
+def test_update_restaurant(client, auth):
     test_client, data_file = client
 
     response = test_client.patch(
         "/restaurants/1",
         json={"name": "New Pizza Place"},
+        headers=auth["owner1"],
     )
 
     assert response.status_code == 200
@@ -53,34 +55,37 @@ def test_update_restaurant(client):
     assert repository.get(1).name == "New Pizza Place"
 
 
-def test_update_unknown_restaurant(client):
+def test_update_unknown_restaurant(client, auth):
     test_client, _ = client
 
     response = test_client.patch(
         "/restaurants/999",
         json={"name": "Unknown Restaurant"},
+        headers=auth["admin"],
     )
 
     assert response.status_code == 404
 
 
-def test_update_invalid_input(client):
+def test_update_invalid_input(client, auth):
     test_client, _ = client
 
     response = test_client.patch(
         "/restaurants/1",
         json={"name": ""},
+        headers=auth["owner1"],
     )
 
     assert response.status_code == 422
 
 
-def test_update_preserves_id(client):
+def test_update_preserves_id(client, auth):
     test_client, _ = client
 
     response = test_client.patch(
         "/restaurants/1",
         json={"cuisine": "Japanese"},
+        headers=auth["owner1"],
     )
 
     assert response.status_code == 200

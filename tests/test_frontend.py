@@ -61,3 +61,9 @@ def test_api_script_uses_create_and_update_endpoints():
     script = client.get("/static/api.js").text
     assert 'method: "POST"' in script
     assert 'method: "PATCH"' in script
+
+
+def test_api_script_sends_the_sign_in_token_with_changes():
+    script = client.get("/static/api.js").text
+    assert "Authorization: `Bearer ${token}`" in script
+    assert script.count("...authHeaders()") == 2  # create and update, not the public reads

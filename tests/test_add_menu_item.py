@@ -2,6 +2,7 @@
 import json
 
 import pytest
+from auth_helpers import auth  # noqa: F401  (pytest fixture)
 from fastapi.testclient import TestClient
 
 from app.main import app
@@ -36,7 +37,7 @@ def client(tmp_path):
         app.dependency_overrides.pop(get_menu_repository, None)
 
 
-def test_add_menu_item(client):
+def test_add_menu_item(client, auth):
     test_client, menus_file, restaurants_file = client
 
     response = test_client.post(
@@ -47,6 +48,7 @@ def test_add_menu_item(client):
             "price": 14.50,
             "category": "Mains",
         },
+        headers=auth["owner1"],
     )
 
     assert response.status_code == 201
@@ -69,7 +71,7 @@ def test_add_menu_item(client):
     assert repository.get_menu(1).items[0].name == "Margherita Pizza"
 
 
-def test_add_menu_item_unknown_restaurant(client):
+def test_add_menu_item_unknown_restaurant(client, auth):
     test_client, menus_file, _ = client
 
     response = test_client.post(
@@ -79,6 +81,7 @@ def test_add_menu_item_unknown_restaurant(client):
             "price": 12.00,
             "category": "Mains",
         },
+        headers=auth["admin"],  # a non-admin gets 403 for an ID that does not exist
     )
 
     assert response.status_code == 404
@@ -95,19 +98,20 @@ def test_add_menu_item_unknown_restaurant(client):
         {"name": "Pizza", "category": "Mains"},
     ],
 )
-def test_add_menu_item_invalid_input(client, invalid_item):
+def test_add_menu_item_invalid_input(client, auth, invalid_item):
     test_client, menus_file, _ = client
 
     response = test_client.post(
         "/restaurants/1/menu",
         json=invalid_item,
+        headers=auth["owner1"],
     )
 
     assert response.status_code == 422
     assert json.loads(menus_file.read_text(encoding="utf-8")) == []
 
 
-def test_add_menu_items_get_unique_ids(client):
+def test_add_menu_items_get_unique_ids(client, auth):
     test_client, menus_file, _ = client
 
     for name in ["Pizza", "Pasta"]:
@@ -118,6 +122,7 @@ def test_add_menu_items_get_unique_ids(client):
                 "price": 12.00,
                 "category": "Mains",
             },
+            headers=auth["owner1"],
         )
         assert response.status_code == 201
 
