@@ -65,3 +65,60 @@ registerForm.addEventListener("submit", async (event) => {
     registerSubmit.disabled = false;
   }
 });
+
+// ---- Profile (#99): signed-in customers can see and edit their details ----
+const profileSection = document.getElementById("profile-section");
+const profileForm = document.getElementById("profile-form");
+const profileStatus = document.getElementById("profile-status");
+const profileFields = {
+  name: document.getElementById("profile-name"),
+  phone: document.getElementById("profile-phone"),
+  delivery_address: document.getElementById("profile-address"),
+};
+let loadedProfile = null;
+
+function fillProfile(profile) {
+  loadedProfile = profile;
+  document.getElementById("profile-email").textContent = profile.email;
+  for (const [field, input] of Object.entries(profileFields)) input.value = profile[field];
+}
+
+async function loadProfile() {
+  const session = Auth.session();
+  if (!Auth.token() || !session || session.role !== "customer") return;
+  try {
+    fillProfile(await API.getProfile());
+    profileSection.hidden = false;
+    // Already signed in, so the sign-in and register forms are not needed.
+    document.getElementById("signin-section").hidden = true;
+    document.getElementById("register-section").hidden = true;
+  } catch (error) {
+    if (error.status !== 401) messageEl.textContent = error.message;
+  }
+}
+
+profileForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  // Send only what changed; the API keeps the rest and rejects an empty name or address.
+  const changes = {};
+  for (const [field, input] of Object.entries(profileFields)) {
+    const value = input.value.trim();
+    if (value !== loadedProfile[field]) changes[field] = value;
+  }
+  if (Object.keys(changes).length === 0) {
+    profileStatus.textContent = "Nothing to save.";
+    return;
+  }
+  const submit = document.getElementById("profile-submit");
+  submit.disabled = true;
+  try {
+    fillProfile(await API.updateProfile(changes));
+    profileStatus.textContent = "Saved.";
+  } catch (error) {
+    profileStatus.textContent = error.message;
+  } finally {
+    submit.disabled = false;
+  }
+});
+
+loadProfile();
