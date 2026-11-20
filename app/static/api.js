@@ -173,4 +173,32 @@ const API = {
   register(data) {
     return request("POST", "/customers", { body: data, fallback: "Could not register" });
   },
+
+  // ---- Cart (signed-in customer). Every call returns the whole cart with backend totals. ----
+  getCart() {
+    return request("GET", "/cart", { auth: true, fallback: "Could not load your cart" });
+  },
+  addToCart(menuItemId, quantity = 1) {
+    return request("POST", "/cart/items", {
+      body: { menu_item_id: menuItemId, quantity },
+      auth: true,
+      fallback: "Could not add the item",
+    });
+  },
+  setCartQuantity(menuItemId, quantity) {
+    return request("PATCH", `/cart/items/${menuItemId}`, {
+      body: { quantity },
+      auth: true,
+      fallback: "Could not change the quantity",
+    });
+  },
+  removeFromCart(menuItemId) {
+    return request("DELETE", `/cart/items/${menuItemId}`, {
+      auth: true,
+      fallback: "Could not remove the item",
+    });
+  },
+  clearCart() {
+    return request("DELETE", "/cart/items", { auth: true, fallback: "Could not clear the cart" });
+  },
 };
