@@ -48,6 +48,7 @@ def test_all_endpoints_are_documented():
         ("DELETE", "/cart/items"),
         ("PATCH", "/cart/items/{menu_item_id}"),
         ("DELETE", "/cart/items/{menu_item_id}"),
+        ("POST", "/checkout"),
     }
 
 
