@@ -87,10 +87,17 @@
   check("signed in after register", localStorage.getItem("authToken") === "tok-new");
   check("follows ?next from page load", window.location.href === "/owner", window.location.href);
 
-  print("open redirect blocked");
-  setPage("/account?next=%2F%2Fevil.com");
-  // re-evaluate nextPage with new params: account.js read params at load, so test the rule directly
-  check("// rejected", !("//evil.com".startsWith("/") && !"//evil.com".startsWith("//")));
+  print("next links: only same-site paths are followed");
+  // Browsers read "\\" as "/" in http(s) URLs, so "/\\evil.example" is really //evil.example.
+  for (const next of ["/\\evil.example", "/\\/evil.example", "//evil.example", "https://evil.example"]) {
+    check(`off-site next ${JSON.stringify(next)} goes to the role default`,
+      nextPage("customer", next) === "/" && nextPage("restaurant_owner", next) === "/owner",
+      [nextPage("customer", next), nextPage("restaurant_owner", next)]);
+  }
+  check("same-site /orders is followed", nextPage("customer", "/orders") === "/orders", nextPage("customer", "/orders"));
+  check("query and hash are kept", nextPage("customer", "/orders?id=2#top") === "/orders?id=2#top");
+  check("/account itself is not followed", nextPage("customer", "/account?next=%2F") === "/");
+  check("no next uses the role default", nextPage("restaurant_owner", null) === "/owner");
 
   print("sign out");
   setPage("/");

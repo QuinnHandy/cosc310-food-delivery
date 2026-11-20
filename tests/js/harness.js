@@ -73,7 +73,43 @@ defineGlobal("document", fakeDocument);
 function Option(text, value) { const o = new El("option"); o.textContent = text; o.value = value; return o; }
 
 // ---- window, storage, timers ----
-defineGlobal("window", { location: { pathname: "/", search: "", href: "/" } });
+defineGlobal("window", { location: { origin: "http://testserver", pathname: "/", search: "", href: "/" } });
+
+// ---- URL: Node has the real WHATWG parser (used on CI). jsc has none, so this stand-in
+// handles what the pages need: http(s) URLs, "//host", paths relative to the origin, and
+// "\" read as "/" the way browsers read it for http(s). ----
+if (typeof URL === "undefined") {
+  defineGlobal("URL", function SimpleURL(input, base) {
+    let s = String(input).replace(/^[\u0000-\u0020]+|[\u0000-\u0020]+$/g, "").replace(/[\t\n\r]/g, "");
+    const baseMatch = /^(https?):\/\/([^/]+)/.exec(base || "");
+    const scheme = /^([a-zA-Z][a-zA-Z0-9+.-]*):/.exec(s);
+    let protocol, host, rest;
+    if (scheme) {
+      protocol = scheme[1].toLowerCase();
+      if (protocol !== "http" && protocol !== "https") {
+        this.origin = "null"; this.pathname = s.slice(scheme[0].length); this.search = ""; this.hash = "";
+        return;
+      }
+      s = s.slice(scheme[0].length).replace(/\\/g, "/");
+      if (!s.startsWith("/") && baseMatch && baseMatch[1] === protocol) { host = baseMatch[2]; rest = "/" + s; }
+      else { s = s.replace(/^\/+/, ""); const i = s.search(/[/?#]|$/); host = s.slice(0, i); rest = s.slice(i); }
+    } else {
+      if (!baseMatch) throw new TypeError("Invalid URL");
+      protocol = baseMatch[1];
+      s = s.replace(/\\/g, "/");
+      if (s.startsWith("//")) { s = s.replace(/^\/+/, ""); const i = s.search(/[/?#]|$/); host = s.slice(0, i); rest = s.slice(i); }
+      else { host = baseMatch[2]; rest = s.startsWith("/") || s.startsWith("?") || s.startsWith("#") ? s : "/" + s; }
+    }
+    if (!host) throw new TypeError("Invalid URL");
+    const hashAt = rest.indexOf("#");
+    this.hash = hashAt < 0 ? "" : rest.slice(hashAt);
+    if (hashAt >= 0) rest = rest.slice(0, hashAt);
+    const queryAt = rest.indexOf("?");
+    this.search = queryAt < 0 ? "" : rest.slice(queryAt);
+    this.pathname = (queryAt < 0 ? rest : rest.slice(0, queryAt)) || "/";
+    this.origin = `${protocol}://${host.toLowerCase()}`;
+  });
+}
 function setPage(url) {
   const i = url.indexOf("?");
   window.location.pathname = i < 0 ? url : url.slice(0, i);
