@@ -1,9 +1,6 @@
-import json
 from pathlib import Path
 
-from pydantic import ValidationError
-
-from app.repositories.restaurant_repository import DataAccessError, write_json_atomic
+from app.repositories.json_store import DataAccessError, JsonStore, next_id
 from app.schemas.cart import Cart, CartStatus
 
 
@@ -18,41 +15,20 @@ class CartRepository:
     """
 
     def __init__(self, cart_file: Path) -> None:
-        self._cart_file = Path(cart_file)
+        self._store = JsonStore(cart_file, Cart, "cart", missing_ok=True)
 
     def list_all(self) -> list[Cart]:
-        try:
-            raw = self._cart_file.read_text(encoding="utf-8")
-        except FileNotFoundError:
-            return []
-        except OSError as exc:
-            raise DataAccessError(f"Could not read cart data file: {self._cart_file}") from exc
-
-        try:
-            records = json.loads(raw)
-        except json.JSONDecodeError as exc:
-            raise DataAccessError(f"Cart data file is not valid JSON: {self._cart_file}") from exc
-
-        if not isinstance(records, list):
-            raise DataAccessError(f"Cart data file must contain a JSON list: {self._cart_file}")
-
-        try:
-            carts = [Cart.model_validate(record) for record in records]
-        except ValidationError as exc:
-            raise DataAccessError(f"Cart record does not match the Cart model: {exc}") from exc
-
-        ids = [c.id for c in carts]
-        if len(ids) != len(set(ids)):
-            raise DataAccessError(f"Cart data file contains duplicate cart IDs: {self._cart_file}")
+        carts = self._store.load()
+        self._store.require_unique_ids(carts)
         active_owners = [c.customer_id for c in carts if c.status == CartStatus.active]
         if len(active_owners) != len(set(active_owners)):
             raise DataAccessError(
-                f"Cart data file has more than one active cart for a customer: {self._cart_file}"
+                f"Cart data file has more than one active cart for a customer: {self._store.path}"
             )
         return carts
 
     def _save(self, carts: list[Cart]) -> None:
-        write_json_atomic(self._cart_file, [c.model_dump(mode="json") for c in carts])
+        self._store.save(carts)
 
     def get_by_id(self, cart_id: int) -> Cart:
         for cart in self.list_all():
@@ -72,7 +48,7 @@ class CartRepository:
         carts = self.list_all()
         if any(c.customer_id == customer_id and c.status == CartStatus.active for c in carts):
             raise DataAccessError(f"Customer {customer_id} already has an active cart")
-        cart = Cart(id=max((c.id for c in carts), default=0) + 1, customer_id=customer_id)
+        cart = Cart(id=next_id(carts), customer_id=customer_id)
         self._save([*carts, cart])
         return cart
 
