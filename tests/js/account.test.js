@@ -11,7 +11,7 @@
     if (b.password.length < 8) return [422, { detail: [{ loc: ["body", "password"], msg: "String should have at least 8 characters" }] }];
     return [201, { id: 7, email: b.email, role: "customer" }];
   };
-  load("app/static/api.js");
+  loadPage("app/static/account.html"); load("app/static/api.js");
   load("app/static/session.js");
   load("app/static/account.js");
 

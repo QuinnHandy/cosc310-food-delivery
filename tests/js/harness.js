@@ -108,6 +108,20 @@ async function fakeFetch(path, init) {
 
 defineGlobal("fetch", fakeFetch);
 
+// Applies a page's starting state from its HTML: every element with an id gets created, and
+// those with the `hidden` attribute start hidden, as they would in a browser.
+// readFile is jsc's; run_node.js provides the same function in Node.
+function loadPage(htmlPath) {
+  const html = readFile(htmlPath);
+  const tag = /<([a-z0-9]+)\b([^>]*\bid="([^"]+)"[^>]*)>/gi;
+  let match;
+  while ((match = tag.exec(html)) !== null) {
+    const el = document.getElementById(match[3]);
+    el.tagName = match[1].toUpperCase();
+    el.hidden = /\shidden(\s|=|$|\/)/.test(match[2] + " ");
+  }
+}
+
 // Lets pending promise chains run (each await hops one microtask).
 async function settle() { for (let i = 0; i < 50; i++) await null; }
 function done() { print(`\n${results.pass} passed, ${results.fail} failed`); if (results.fail) quit(1); }
