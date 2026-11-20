@@ -17,7 +17,7 @@ This document defines every M1 endpoint. The implementation, the tests, and the 
 | 200 | Success |
 | 201 | Resource created |
 | 401 | Wrong email or password, or a missing or invalid bearer token |
-| 403 | The account has been deactivated, or the signed-in user's role is not allowed |
+| 403 | The account has been deactivated, or the signed-in user is not allowed (wrong role, or not the owner of this restaurant) |
 | 404 | Restaurant or menu item not found |
 | 422 | Invalid request (missing field, wrong type, failed validation) |
 | 500 | Stored data could not be read |
@@ -77,14 +77,14 @@ This document defines every M1 endpoint. The implementation, the tests, and the 
 |---|---|---|---|---|---|
 | 1 | GET | `/restaurants` | List restaurants, with optional search/filter | 200 | 422 |
 | 2 | GET | `/restaurants/{restaurant_id}` | Restaurant details | 200 | 404, 422 |
-| 3 | POST | `/restaurants` | Create a restaurant | 201 | 422 |
-| 4 | PATCH | `/restaurants/{restaurant_id}` | Update a restaurant | 200 | 404, 422 |
+| 3 | POST | `/restaurants` | Create a restaurant (owner or admin) | 201 | 401, 403, 422 |
+| 4 | PATCH | `/restaurants/{restaurant_id}` | Update a restaurant (its owner or admin) | 200 | 401, 403, 404, 422 |
 | 5 | GET | `/restaurants/{restaurant_id}/menu` | View a restaurant's menu | 200 | 404, 422 |
 | 6 | GET | `/restaurants/{restaurant_id}/menu/items` | List menu items | 200 | 404, 422 |
-| 7 | POST | `/restaurants/{restaurant_id}/menu/items` | Add a menu item | 201 | 404, 422 |
-| 8 | PATCH | `/restaurants/{restaurant_id}/menu/items/{item_id}` | Update a menu item | 200 | 404, 422 |
+| 7 | POST | `/restaurants/{restaurant_id}/menu/items` | Add a menu item (the restaurant's owner or admin) | 201 | 401, 403, 404, 422 |
+| 8 | PATCH | `/restaurants/{restaurant_id}/menu/items/{item_id}` | Update a menu item (the restaurant's owner or admin) | 200 | 401, 403, 404, 422 |
 
-Every endpoint can also return 500 if the stored data can't be read.
+Every endpoint can also return 500 if the stored data can't be read. The `GET` endpoints are public and need no token. For who may call the others, see [Protected endpoints](#protected-endpoints).
 
 ## Endpoints
 
@@ -131,6 +131,8 @@ Spaces at either end of a value are trimmed. An empty or spaces-only parameter i
 ### 3. Create a restaurant
 `POST /restaurants`
 
+**Auth:** `Authorization: Bearer <token>` of a `restaurant_owner` or `admin`
+
 **Request body:** `RestaurantCreate`
 ```json
 {
@@ -149,12 +151,16 @@ Spaces at either end of a value are trimmed. An empty or spaces-only parameter i
 **Response 201:** `Restaurant`, including its new `id`
 
 **Errors**
+- `401`: no valid bearer token
+- `403`: a `customer`, or a deactivated account
 - `422`: a required field is missing or empty, a number is negative, or `delivery_time_max` < `delivery_time_min`
 
 ### 4. Update a restaurant
 `PATCH /restaurants/{restaurant_id}`
 
 **Path parameters:** `restaurant_id` (int)
+
+**Auth:** `Authorization: Bearer <token>` of an `admin`, or of the `restaurant_owner` whose `restaurant_id` is this `restaurant_id`
 
 **Request body:** `RestaurantUpdate` (only the fields to change)
 ```json
@@ -164,6 +170,8 @@ Spaces at either end of a value are trimmed. An empty or spaces-only parameter i
 **Response 200:** the updated `Restaurant`
 
 **Errors**
+- `401`: no valid bearer token
+- `403`: any other user, or a deactivated account. A non-admin gets `403`, not `404`, for a restaurant that does not exist.
 - `404`: restaurant not found
 - `422`: a field has the wrong type or is empty
 - `422`: after applying the update, `delivery_time_max` would be less than `delivery_time_min` (checked in the service layer against the stored restaurant)
@@ -265,6 +273,8 @@ Spaces at either end of a value are trimmed. An empty or spaces-only parameter i
 
 **Path parameters:** `restaurant_id` (int)
 
+**Auth:** `Authorization: Bearer <token>` of an `admin`, or of the `restaurant_owner` whose `restaurant_id` is this `restaurant_id`
+
 **Request body:** `MenuItemCreate`
 ```json
 {
@@ -280,6 +290,8 @@ Spaces at either end of a value are trimmed. An empty or spaces-only parameter i
 **Response 201:** `MenuItem`, with its new `id` and `restaurant_id`
 
 **Errors**
+- `401`: no valid bearer token
+- `403`: any other user, or a deactivated account. A non-admin gets `403`, not `404`, for a restaurant that does not exist.
 - `404`: restaurant not found
 - `422`: missing `name`, `price`, or `category`, or `price` <= 0
 
@@ -287,6 +299,8 @@ Spaces at either end of a value are trimmed. An empty or spaces-only parameter i
 `PATCH /restaurants/{restaurant_id}/menu/items/{item_id}`
 
 **Path parameters:** `restaurant_id` (int), `item_id` (int)
+
+**Auth:** `Authorization: Bearer <token>` of an `admin`, or of the `restaurant_owner` whose `restaurant_id` is this `restaurant_id`
 
 **Request body:** `MenuItemUpdate` (only the fields to change)
 ```json
@@ -296,6 +310,8 @@ Spaces at either end of a value are trimmed. An empty or spaces-only parameter i
 **Response 200:** the updated `MenuItem`
 
 **Errors**
+- `401`: no valid bearer token
+- `403`: any other user, or a deactivated account. A non-admin gets `403`, not `404`, for a restaurant that does not exist.
 - `404`: the restaurant doesn't exist, the item doesn't exist, or the item belongs to a different restaurant
 - `422`: a field has the wrong type, or `price` ≤ 0
 
@@ -358,6 +374,7 @@ Added in M2 (#81). An endpoint that needs a signed-in user checks the token befo
 | The token is unknown or signed out, or its user no longer exists | 401 | `{"detail": "Invalid session token"}` |
 | The user's account is deactivated (also if it was deactivated after signing in) | 403 | `{"detail": "This account has been deactivated"}` |
 | The endpoint is limited to certain roles and the user has another one | 403 | `{"detail": "You do not have permission to do this"}` |
+| The endpoint changes one restaurant or its menu, and the user is not an admin or that restaurant's owner (#82) | 403 | `{"detail": "You do not have permission to change this restaurant"}` |
 | Stored user or session data cannot be read | 500 | `{"detail": "Could not verify the sign-in"}` |
 
 Every 401 includes `WWW-Authenticate: Bearer`. Protected endpoints show the `HTTPBearer` security scheme in OpenAPI.
