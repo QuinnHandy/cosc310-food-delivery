@@ -47,7 +47,7 @@ def app_data(tmp_path, monkeypatch) -> AppData:
     data_dir = tmp_path / "data"
     data_dir.mkdir()
     for path in (PROJECT_ROOT / "data").glob("*.json"):
-        if path.name != "sessions.json":
+        if path.name not in ("sessions.json", "carts.json"):
             shutil.copy(path, data_dir / path.name)
     monkeypatch.setattr(settings, "data_dir", data_dir)
 
