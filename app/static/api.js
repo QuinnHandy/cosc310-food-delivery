@@ -50,6 +50,13 @@ const API = {
     if (!response.ok) throw new Error("Could not load restaurant details");
     return response.json();
   },
+  async getMenu(restaurantId) {
+    const response = await fetch(`/restaurants/${restaurantId}/menu`);
+    if (!response.ok) {
+      throw new Error(await errorMessage(response, "Could not load the menu"));
+    }
+    return response.json();
+  },
   async createRestaurant(data) {
     const response = await fetch("/restaurants", {
       method: "POST",
