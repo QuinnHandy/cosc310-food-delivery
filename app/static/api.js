@@ -201,4 +201,27 @@ const API = {
   clearCart() {
     return request("DELETE", "/cart/items", { auth: true, fallback: "Could not clear the cart" });
   },
+
+  // ---- Checkout and orders (signed-in customer) ----
+  checkout() {
+    return request("POST", "/checkout", { auth: true, fallback: "Could not place your order" });
+  },
+  getMyOrders() {
+    return request("GET", "/customers/me/orders", { auth: true, fallback: "Could not load your orders" });
+  },
+  getOrder(orderId) {
+    return request("GET", `/orders/${orderId}`, { auth: true, fallback: "Could not load the order" });
+  },
+
+  // ---- Profile (signed-in customer) ----
+  getProfile() {
+    return request("GET", "/customers/me", { auth: true, fallback: "Could not load your profile" });
+  },
+  updateProfile(changes) {
+    return request("PATCH", "/customers/me", {
+      body: changes,
+      auth: true,
+      fallback: "Could not save your profile",
+    });
+  },
 };
