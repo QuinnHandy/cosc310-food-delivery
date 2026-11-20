@@ -8,7 +8,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 
-from app.api.routes import auth, cart, checkout, customers, orders, restaurants, menus
+from app.api.routes import auth, cart, checkout, customers, restaurants, menus
 from app.schemas.common import HealthResponse
 
 STATIC_DIR = Path(__file__).resolve().parent / "static" 
@@ -43,4 +43,3 @@ app.include_router(auth.router)
 app.include_router(customers.router)
 app.include_router(cart.router)
 app.include_router(checkout.router)
-app.include_router(orders.router)
