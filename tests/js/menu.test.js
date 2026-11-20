@@ -9,7 +9,7 @@
     { id: 2, restaurant_id: 1, name: "Tiramisu", description: "", price: 7, is_available: false, category: "Desserts" }] }];
   routes["GET /restaurants/2/menu"] = () => [200, { restaurant_id: 2, items: [] }];
   routes["GET /restaurants/3/menu"] = () => [500, { detail: "Could not load menu data: boom" }];
-  load("app/static/api.js"); load("app/static/session.js"); load("app/static/app.js");
+  load("app/static/api.js"); load("app/static/session.js"); load("app/static/cart.js"); load("app/static/app.js");
   await settle();
   const list = document.getElementById("restaurant-list");
   check("restaurants listed", list.children.length === 3, list.children.length);

@@ -54,6 +54,7 @@ El.prototype.click = function () { return this.dispatch("click"); };
 El.prototype.submit = function () { return this.dispatch("submit"); };
 El.prototype.reset = function () {};
 El.prototype.focus = function () {};
+El.prototype.setAttribute = function (name, value) { this[name] = String(value); };
 // Depth-first search of created children, for buttons the scripts build.
 El.prototype.findAll = function (pred, out) {
   out = out || [];
