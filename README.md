@@ -51,6 +51,8 @@ The restaurant owner page is at http://127.0.0.1:8000/owner (add a restaurant, o
 | PATCH | `/restaurants/{restaurant_id}` | Update a restaurant's `name` and/or `cuisine` (404 if the ID doesn't exist) |
 | GET | `/restaurants/{restaurant_id}/menu` | A restaurant's menu items sorted by ID (404 if the restaurant doesn't exist; `items` is `[]` if it has none) |
 | POST | `/restaurants/{restaurant_id}/menu` | Add a menu item (`name`, `price`, `category`, plus optional `description`, `is_available`, `image_url`). Returns 201 with the new item (404 if the restaurant doesn't exist) |
+| POST | `/auth/login` | Sign in with `email` and `password`. Returns 200 with `token`, `user_id` and `role` (401 if the details are wrong, 403 if the account is deactivated) |
+| POST | `/auth/logout` | Sign out using `Authorization: Bearer <token>`. Returns 200 with a message (401 if the token is missing or not valid) |
 
 Web pages (HTML, not part of the API docs):
 | Method | Path | Description |
@@ -67,11 +69,26 @@ Interactive API docs: http://127.0.0.1:8000/docs
 The full M1 API contract (all endpoints, models, and status codes) is in [docs/api-contract.md](docs/api-contract.md).
 
 ## Data
-- `data/restaurants.json` and `data/menus.json` hold the sample data, and they are where changes made through the app (API or web pages) are saved.
+- `data/restaurants.json`, `data/menus.json` and `data/users.json` hold the sample data, and they are where changes made through the app (API or web pages) are saved.
+- `data/users.json` stores only salted password hashes (PBKDF2-SHA256), never plain passwords.
 - Saved changes survive a restart of the server. Writes go to a temporary file first and then replace the original, so a crash never leaves a half-written file.
 - IDs are assigned by the server (highest existing ID + 1) and never change, so menu items keep pointing at the right restaurant.
 - The data location can be changed with the `APP_DATA_DIR` environment variable.
 - Creating or editing data through the app changes these tracked files. To reset them to the committed sample data, run `git checkout -- data/`.
+
+## Demo accounts
+The seed data in `data/users.json` has these accounts. They all use the demo password `Password123!`.
+
+| Email | Role | Notes |
+|---|---|---|
+| `admin@foodapp.test` | admin | |
+| `owner1@foodapp.test` | restaurant owner | Manages Golden Dragon (restaurant 1) |
+| `owner2@foodapp.test` | restaurant owner | Manages Spice Garden (restaurant 2) |
+| `alice@foodapp.test` | customer | Has a phone number and delivery address |
+| `bob@foodapp.test` | customer | Has a phone number and delivery address |
+| `carol@foodapp.test` | customer | Deactivated account (`is_active: false`), for the deactivated-customer demo |
+
+To sign in, open http://127.0.0.1:8000/docs, run `POST /auth/login` with one of these accounts and copy the `token` from the response. Click **Authorize**, paste the token (without the word `Bearer`) and confirm, and `/docs` will send it with requests such as `POST /auth/logout`. Tokens are saved in `data/sessions.json`, which is created when the app runs and is ignored by git.
 
 ## Repository Structure
 ```

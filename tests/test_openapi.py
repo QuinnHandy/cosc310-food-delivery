@@ -25,7 +25,7 @@ def operation_id(param):
     return f"{param[0]} {param[1]}" if isinstance(param, tuple) else None
 
 
-def test_all_m1_endpoints_are_documented():
+def test_all_endpoints_are_documented():
     documented = {(method, path) for method, path, _ in OPERATIONS}
     assert documented == {
         ("GET", "/health"),
@@ -35,6 +35,8 @@ def test_all_m1_endpoints_are_documented():
         ("PATCH", "/restaurants/{restaurant_id}"),
         ("GET", "/restaurants/{restaurant_id}/menu"),
         ("POST", "/restaurants/{restaurant_id}/menu"),
+        ("POST", "/auth/login"),
+        ("POST", "/auth/logout"),
     }
 
 
@@ -92,11 +94,26 @@ def test_create_routes_document_201():
     assert "201" in SCHEMA["paths"]["/restaurants/{restaurant_id}/menu"]["post"]["responses"]
 
 
+def test_auth_routes_document_their_errors():
+    login = SCHEMA["paths"]["/auth/login"]["post"]["responses"]
+    logout = SCHEMA["paths"]["/auth/logout"]["post"]["responses"]
+    assert {"200", "401", "403", "422", "500"} <= set(login)
+    assert {"200", "401", "500"} <= set(logout)
+
+
+# Logout shows the padlock in /docs, so "Authorize" sends the token with it.
+def test_logout_documents_bearer_security():
+    assert SCHEMA["paths"]["/auth/logout"]["post"]["security"] == [{"HTTPBearer": []}]
+    assert SCHEMA["components"]["securitySchemes"]["HTTPBearer"]["scheme"] == "bearer"
+    assert "security" not in SCHEMA["paths"]["/auth/login"]["post"]
+
+
 # Every field of the request and response models should explain itself in /docs.
 @pytest.mark.parametrize("name", [
     "Restaurant", "RestaurantCreate", "RestaurantUpdate",
     "MenuItem", "MenuItemCreate", "MenuResponse", "MenuItemResponse",
     "ErrorResponse", "HealthResponse",
+    "LoginRequest", "LoginResponse", "MessageResponse",
 ])
 def test_schema_fields_have_descriptions(name):
     for field, spec in SCHEMA["components"]["schemas"][name]["properties"].items():

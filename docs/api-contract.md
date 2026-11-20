@@ -16,6 +16,8 @@ This document defines every M1 endpoint. The implementation, the tests, and the 
 |---|---|
 | 200 | Success |
 | 201 | Resource created |
+| 401 | Wrong email or password, or a missing or invalid bearer token |
+| 403 | The account has been deactivated |
 | 404 | Restaurant or menu item not found |
 | 422 | Invalid request (missing field, wrong type, failed validation) |
 | 500 | Stored data could not be read |
@@ -296,6 +298,55 @@ Spaces at either end of a value are trimmed. An empty or spaces-only parameter i
 **Errors**
 - `404`: the restaurant doesn't exist, the item doesn't exist, or the item belongs to a different restaurant
 - `422`: a field has the wrong type, or `price` ≤ 0
+
+## Authentication
+
+Added in M2 (#80). Signing in returns a token. Send it on requests that need a signed-in user:
+
+```
+Authorization: Bearer <token>
+```
+
+Tokens are random, are saved in `data/sessions.json` with the user's ID, and keep working after a server restart until the user signs out. That file is created at runtime and is not committed.
+
+| Method | Path | Purpose | Success | Errors |
+|---|---|---|---|---|
+| POST | `/auth/login` | Sign in and get a token | 200 | 401, 403, 422, 500 |
+| POST | `/auth/logout` | Sign out and delete the token | 200 | 401, 500 |
+
+### Sign in
+`POST /auth/login`
+
+**Request body:** `LoginRequest`
+```json
+{ "email": "alice@foodapp.test", "password": "Password123!" }
+```
+
+**Response 200:** `LoginResponse`
+```json
+{ "token": "x7Qp...", "user_id": 4, "role": "customer" }
+```
+`role` is `customer`, `restaurant_owner` or `admin`.
+
+**Errors**
+- `401`: `{"detail": "Invalid email or password"}`. The message is the same for an unknown email and a wrong password. The response includes `WWW-Authenticate: Bearer`.
+- `403`: `{"detail": "This account has been deactivated"}`. Only returned when the password is correct.
+- `422`: `email` or `password` is missing, or `password` is empty
+- `500`: `{"detail": "Could not complete sign in"}`. Stored user or session data could not be read or saved.
+
+### Sign out
+`POST /auth/logout`
+
+**Headers:** `Authorization: Bearer <token>`. There is no request body.
+
+**Response 200:** `MessageResponse`
+```json
+{ "message": "Signed out" }
+```
+
+**Errors**
+- `401`: `{"detail": "Not authenticated"}` if the header is missing or is not a bearer token, or `{"detail": "Invalid session token"}` if the token is unknown or already signed out. The response includes `WWW-Authenticate: Bearer`.
+- `500`: `{"detail": "Could not complete sign out"}`. Stored session data could not be read or saved.
 
 ## Existing Endpoints (unchanged from M0)
 
