@@ -94,12 +94,17 @@ def test_client_cannot_send_a_price(api):
 
 
 def test_cart_is_saved_to_the_temp_data_not_the_committed_file(app_data):
-    committed = (PROJECT_ROOT / "data" / "carts.json").read_text()
+    real_file = PROJECT_ROOT / "data" / "carts.json"  # git-ignored, so it may not exist
+
+    def snapshot():
+        return real_file.read_text() if real_file.exists() else None
+
+    before = snapshot()
     app_data.client.post("/cart/items", json={"menu_item_id": 1}, headers=app_data.headers["customer"])
     saved = json.loads((app_data.data_dir / "carts.json").read_text())
     assert saved[0]["items"] == [{"menu_item_id": 1, "quantity": 1}]
     assert "price" not in json.dumps(saved)  # prices are never stored in the cart
-    assert (PROJECT_ROOT / "data" / "carts.json").read_text() == committed
+    assert snapshot() == before
 
 
 def test_cart_endpoints_are_documented(app_data):
