@@ -27,6 +27,21 @@ function menuItemElement(menuItem) {
     description.textContent = menuItem.description;
     item.appendChild(description);
   }
+
+  // The cart API refuses unavailable items anyway; the disabled button just says so up front.
+  const add = document.createElement("button");
+  add.type = "button";
+  add.textContent = "Add to cart";
+  add.disabled = !menuItem.is_available;
+  add.addEventListener("click", async () => {
+    add.disabled = true;
+    try {
+      await CartPanel.add(menuItem);
+    } finally {
+      add.disabled = !menuItem.is_available;
+    }
+  });
+  item.appendChild(add);
   return item;
 }
 

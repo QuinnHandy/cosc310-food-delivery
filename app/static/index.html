@@ -8,6 +8,8 @@
     <link rel="icon" href="data:,">
     <style>
         .unavailable { color: #777; }
+        #cart { border: 1px solid #ccc; padding: 0 1em 1em; margin-top: 1em; }
+        .cart-totals td:first-child { padding-right: 1em; }
     </style>
 </head>
 
@@ -43,8 +45,23 @@
         <ul id="menu-list"></ul>
     </section>
 
+    <section id="cart">
+        <h2>Your cart</h2>
+        <p id="cart-status" role="status"></p>
+        <ul id="cart-list"></ul>
+        <table class="cart-totals" id="cart-totals" hidden>
+            <tr><td>Subtotal</td><td id="cart-subtotal"></td></tr>
+            <tr><td>Delivery fee</td><td id="cart-delivery-fee"></td></tr>
+            <tr><td><strong>Total</strong></td><td><strong id="cart-total"></strong></td></tr>
+        </table>
+        <p>
+            <button type="button" id="cart-clear" hidden>Clear cart</button>
+        </p>
+    </section>
+
     <script src="/static/api.js"></script>
     <script src="/static/session.js"></script>
+    <script src="/static/cart.js"></script>
     <script src="/static/app.js"></script>
 </body>
 
