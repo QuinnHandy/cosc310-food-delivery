@@ -53,5 +53,8 @@ def test_api_script_redirects_to_sign_in_on_401():
 
 
 def test_sign_in_only_follows_same_site_next_links():
+    # Behaviour, including "/\\evil.example", is checked in tests/js/account.test.js.
     script = client.get("/static/account.js").text
-    assert 'next.startsWith("/") && !next.startsWith("//")' in script
+    assert "new URL(next, window.location.origin)" in script
+    assert "url.origin === window.location.origin" in script
+    assert 'next.startsWith("/")' not in script  # the old string check that "\\" got around

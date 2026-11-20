@@ -89,7 +89,10 @@ def test_invalid_file_raises_data_access_error(cart_file, content):
         CartRepository(cart_file).list_all()
 
 
-def test_committed_carts_file_is_valid():
+def test_carts_file_is_created_at_runtime_and_not_committed():
+    # Like sessions.json: the app creates it on first use (a missing file means no carts),
+    # so using the cart never shows up as a change in git.
     from app.core.config import PROJECT_ROOT
 
-    CartRepository(PROJECT_ROOT / "data" / "carts.json").list_all()
+    ignored = (PROJECT_ROOT / ".gitignore").read_text().splitlines()
+    assert "data/carts.json" in ignored

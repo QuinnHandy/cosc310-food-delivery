@@ -63,6 +63,9 @@ class JsonStore(Generic[Model]):
     `label` names the data in error messages ("Restaurant data file is not valid JSON").
     With `missing_ok`, a file that doesn't exist yet reads as an empty list, for data the
     app creates at runtime (sessions, carts); otherwise it is a DataAccessError.
+    With `hide_record_details`, a record that fails validation is reported without
+    Pydantic's details, which quote the stored values. Use it for secrets such as session
+    tokens. The details stay on the exception's __cause__ for debugging.
     """
 
     def __init__(
@@ -73,12 +76,14 @@ class JsonStore(Generic[Model]):
         *,
         missing_ok: bool = False,
         dump: Callable[[Model], dict] | None = None,
+        hide_record_details: bool = False,
     ) -> None:
         self.path = Path(path)
         self._model = model
         self._label = label
         self._missing_ok = missing_ok
         self._dump = dump or (lambda record: record.model_dump(mode="json"))
+        self._hide_record_details = hide_record_details
 
     def load(self) -> list[Model]:
         """Reads and validates every record. Raises DataAccessError if anything is wrong."""
@@ -106,6 +111,11 @@ class JsonStore(Generic[Model]):
         try:
             return [self._model.model_validate(record) for record in records]
         except ValidationError as exc:
+            if self._hide_record_details:
+                raise DataAccessError(
+                    f"{self._label.capitalize()} data file has a record that does not match "
+                    f"the {self._model.__name__} model: {self.path}"
+                ) from exc
             raise DataAccessError(
                 f"{self._label.capitalize()} record does not match the "
                 f"{self._model.__name__} model: {exc}"

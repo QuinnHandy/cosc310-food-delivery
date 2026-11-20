@@ -5,14 +5,21 @@ const params = new URLSearchParams(window.location.search);
 const messageEl = document.getElementById("account-message");
 if (params.get("message")) messageEl.textContent = params.get("message");
 
-// Where to go after signing in. Only same-site paths are followed, so a crafted link
-// cannot send the user to another website.
-function nextPage(role) {
-  const next = params.get("next");
-  if (next && next.startsWith("/") && !next.startsWith("//") && !next.startsWith("/account")) {
-    return next;
+// Where to go after signing in. `next` is parsed the way the browser will read it, and only
+// followed if it stays on this site, so a crafted link like "/\evil.example" (browsers treat
+// "\" as "/") or "//evil.example" cannot send the user to another website.
+function nextPage(role, next = params.get("next")) {
+  const fallback = role === "customer" ? "/" : "/owner";
+  if (!next) return fallback;
+  try {
+    const url = new URL(next, window.location.origin);
+    if (url.origin === window.location.origin && !url.pathname.startsWith("/account")) {
+      return url.pathname + url.search + url.hash;
+    }
+  } catch (error) {
+    // not a URL the browser could follow either
   }
-  return role === "customer" ? "/" : "/owner";
+  return fallback;
 }
 
 // ---- Sign in ----

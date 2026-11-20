@@ -53,6 +53,9 @@ The restaurant owner page is at http://127.0.0.1:8000/owner (add a restaurant, o
 | POST | `/restaurants/{restaurant_id}/menu` | Add a menu item (`name`, `price`, `category`, plus optional `description`, `is_available`, `image_url`). Returns 201 with the new item (404 if the restaurant doesn't exist). Needs that restaurant's owner or an admin (401 without a valid token, 403 for anyone else) |
 | POST | `/auth/login` | Sign in with `email` and `password`. Returns 200 with `token`, `user_id` and `role` (401 if the details are wrong, 403 if the account is deactivated) |
 | POST | `/auth/logout` | Sign out using `Authorization: Bearer <token>`. Returns 200 with a message (401 if the token is missing or not valid) |
+| GET | `/customers/me/orders` | My orders, newest first. `200` with `[]` if there are none. Needs a customer token (401 without a valid token, 403 for other roles or a deactivated account) |
+| GET | `/customers/{customer_id}/orders` | Any customer's orders, newest first. Needs an admin token (401 without a valid token, 403 for other roles, 404 if no customer has that ID) |
+| GET | `/orders/{order_id}` | One order. A customer sees only their own; an admin sees any. 401 without a valid token, 403 for another customer's order, a restaurant owner or a deactivated account, 404 if there is no such order |
 
 Web pages (HTML, not part of the API docs):
 | Method | Path | Description |

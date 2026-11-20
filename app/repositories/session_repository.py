@@ -8,7 +8,10 @@ class SessionRepository:
     """Reads and writes sign-in sessions in a JSON file. A missing file means no sessions yet."""
 
     def __init__(self, session_file: Path) -> None:
-        self._store = JsonStore(session_file, Session, "session", missing_ok=True)
+        # Validation details would quote stored tokens, so they are left out of errors.
+        self._store = JsonStore(
+            session_file, Session, "session", missing_ok=True, hide_record_details=True
+        )
 
     def _load(self) -> list[Session]:
         return self._store.load()
