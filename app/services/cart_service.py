@@ -8,6 +8,7 @@ from app.schemas.cart import (
     CartLine,
     CartLineResponse,
     CartResponse,
+    CartStatus,
 )
 from app.schemas.menu import MenuItem
 from app.schemas.user import User, UserRole
@@ -60,6 +61,12 @@ class CartService:
     def get_active_cart(self, customer: User) -> Cart:
         """The stored active cart (created if missing), for other services such as checkout."""
         return self._active_cart(customer)
+
+    def find_active_cart(self, customer: User) -> Cart | None:
+        """The stored active cart, or None. Unlike get_active_cart this never creates (writes) one,
+        so checkout can refuse an empty cart without touching the cart file."""
+        self._require_active_customer(customer)
+        return self._carts.get_active_for_customer(customer.id)
 
     # ---- changes ----
 
@@ -122,6 +129,14 @@ class CartService:
         updated = cart.model_copy(update={"items": [], "restaurant_id": None})
         return self.to_response(self._carts.save(updated))
 
+    def mark_checked_out(self, cart: Cart) -> Cart:
+        """Closes a cart once an order has been made from it (#94).
+
+        The cart keeps its lines as a record. The customer's next `get_cart` finds no active
+        cart and creates a new empty one.
+        """
+        return self._carts.save(cart.model_copy(update={"status": CartStatus.checked_out}))
+
     # ---- pricing ----
 
     def to_response(self, cart: Cart) -> CartResponse:
@@ -155,13 +170,17 @@ class CartService:
 
     # ---- helpers ----
 
-    def _active_cart(self, customer: User) -> Cart:
+    @staticmethod
+    def _require_active_customer(customer: User) -> None:
         # Checked here as well as by the route's auth dependency, so the rule holds for any
         # caller of the service, not only HTTP requests.
         if customer.role != UserRole.customer:
             raise CustomerNotAllowedError("Only customers have a cart")
         if not customer.is_active:
             raise CustomerNotAllowedError("This account has been deactivated")
+
+    def _active_cart(self, customer: User) -> Cart:
+        self._require_active_customer(customer)
         return self._carts.get_active_for_customer(customer.id) or self._carts.add(customer.id)
 
     @staticmethod
