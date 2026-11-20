@@ -55,7 +55,7 @@ The restaurant owner page is at http://127.0.0.1:8000/owner (add a restaurant, o
 | POST | `/auth/logout` | Sign out using `Authorization: Bearer <token>`. Returns 200 with a message (401 if the token is missing or not valid) |
 | GET | `/customers/me/orders` | My orders, newest first. `200` with `[]` if there are none. Needs a customer token (401 without a valid token, 403 for other roles or a deactivated account) |
 | GET | `/customers/{customer_id}/orders` | Any customer's orders, newest first. Needs an admin token (401 without a valid token, 403 for other roles, 404 if no customer has that ID) |
-| GET | `/orders/{order_id}` | One of my orders. Needs a customer token (401 without a valid token, 403 for other roles or a deactivated account, 404 if there is no such order or it belongs to someone else) |
+| GET | `/orders/{order_id}` | One order. A customer sees only their own; an admin sees any. 401 without a valid token, 403 for another customer's order, a restaurant owner or a deactivated account, 404 if there is no such order |
 
 Web pages (HTML, not part of the API docs):
 | Method | Path | Description |

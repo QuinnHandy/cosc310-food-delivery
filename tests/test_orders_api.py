@@ -2,7 +2,10 @@
 
 import pytest
 
+from app.repositories.menu_repository import MenuRepository
 from app.repositories.order_repository import OrderRepository
+from app.repositories.restaurant_repository import RestaurantRepository
+from app.schemas.menu import MenuItemUpdate
 from app_data_helpers import app_data  # noqa: F401  (pytest fixture)
 from test_order_service import make_draft
 
@@ -187,17 +190,26 @@ def test_view_order_matches_the_same_order_in_the_list(app_data):
     assert client.get("/orders/2", headers=h["customer"]).json() == listed[2]
 
 
-def test_viewing_another_customers_order_returns_404_not_403(app_data):
-    """403 would confirm the ID exists; 404 looks the same as an unknown ID."""
+def test_another_customers_order_returns_403(app_data):
     client, h = app_data.client, app_data.headers
     seed_orders(app_data, 5)  # Bob's order
     response = client.get("/orders/1", headers=h["customer"])
-    assert response.status_code == 404
-    assert response.json() == {"detail": "Order 1 not found"}
+    assert response.status_code == 403
+    assert response.json() == {"detail": "You do not have permission to view this order"}
 
 
-def test_viewing_an_unknown_order_returns_404(app_data):
-    response = app_data.client.get("/orders/99", headers=app_data.headers["customer"])
+def test_admin_can_view_any_order(app_data):
+    client, h = app_data.client, app_data.headers
+    seed_orders(app_data, 4, 5, 6)  # 6 is a deactivated customer
+    for order_id, customer_id in ((1, 4), (2, 5), (3, 6)):
+        response = client.get(f"/orders/{order_id}", headers=h["admin"])
+        assert response.status_code == 200
+        assert response.json()["customer_id"] == customer_id
+
+
+@pytest.mark.parametrize("who", ["customer", "admin"])
+def test_unknown_order_returns_404(app_data, who):
+    response = app_data.client.get("/orders/99", headers=app_data.headers[who])
     assert response.status_code == 404
     assert response.json() == {"detail": "Order 99 not found"}
 
@@ -220,8 +232,13 @@ def test_view_order_without_a_token_returns_401(api):
     assert response.headers["www-authenticate"] == "Bearer"
 
 
-@pytest.mark.parametrize("who", ["owner1", "admin", "deactivated"])
-def test_view_order_is_for_active_customers_only(app_data, who):
+def test_view_order_with_a_bad_token_returns_401(api):
+    client, _ = api
+    assert client.get("/orders/1", headers={"Authorization": "Bearer nope"}).status_code == 401
+
+
+@pytest.mark.parametrize("who", ["owner1", "deactivated"])
+def test_restaurant_owners_and_deactivated_customers_get_403(app_data, who):
     seed_orders(app_data, 4)
     response = app_data.client.get("/orders/1", headers=app_data.headers[who])
     assert response.status_code == 403
@@ -236,10 +253,29 @@ def test_checkout_then_view_shows_the_new_order(api):
     assert viewed.json() == placed
 
 
+def test_changing_a_menu_item_afterwards_does_not_change_the_stored_order(app_data):
+    """Acceptance criterion: an order keeps the name and price from checkout."""
+    client, h = app_data.client, app_data.headers
+    client.post("/cart/items", json={"menu_item_id": 1, "quantity": 2}, headers=h["customer"])
+    client.post("/checkout", headers=h["customer"])
+    before = client.get("/orders/1", headers=h["customer"]).json()
+
+    restaurants = RestaurantRepository(app_data.data_dir / "restaurants.json")
+    menus = MenuRepository(app_data.data_dir / "menus.json", restaurants)
+    menus.update_item(1, 1, MenuItemUpdate(name="Renamed Dish", price=99.0))
+
+    after = client.get("/orders/1", headers=h["customer"]).json()
+    assert after == before
+    assert after["items"][0]["name"] == "Kung Pao Chicken"
+    assert after["items"][0]["unit_price"] == 15.5
+    assert after["total"] == 35.99
+
+
 def test_viewing_an_order_changes_no_files(app_data):
     seed_orders(app_data, 4)
     before = {p.name: p.read_bytes() for p in app_data.data_dir.glob("*.json")}
     app_data.client.get("/orders/1", headers=app_data.headers["customer"])
+    app_data.client.get("/orders/1", headers=app_data.headers["admin"])
     after = {p.name: p.read_bytes() for p in app_data.data_dir.glob("*.json")}
     assert before == after
 

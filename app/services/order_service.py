@@ -2,8 +2,12 @@
 
 from app.repositories.order_repository import OrderNotFoundError, OrderRepository
 from app.schemas.order import Order
-from app.schemas.user import User
+from app.schemas.user import User, UserRole
 from app.services.customer_service import CustomerService
+
+
+class OrderNotAllowedError(Exception):
+    """Raised when a customer asks for an order that belongs to someone else."""
 
 
 class OrderService:
@@ -11,8 +15,7 @@ class OrderService:
 
     A customer only ever sees their own orders: the ID always comes from the signed-in user,
     never from the request. An admin names the customer, and the customer must exist.
-    Viewing one order (#95) works the same way: an order that belongs to someone else is
-    reported as not found, so a customer cannot tell which order IDs exist.
+    Viewing one order (#95): a customer may only open their own order; an admin may open any.
     """
 
     def __init__(self, order_repository: OrderRepository, customer_service: CustomerService) -> None:
@@ -32,13 +35,13 @@ class OrderService:
         self._customers.get_customer(customer_id)
         return self._orders.list_for_customer(customer_id)
 
-    def get_my_order(self, user: User, order_id: int) -> Order:
-        """One of the signed-in customer's orders (#95).
+    def get_order(self, user: User, order_id: int) -> Order:
+        """One order (#95). A customer may view their own; an admin may view any.
 
-        Raises OrderNotFoundError if the ID is unknown *or* the order belongs to another
-        customer. Both look the same on purpose, so nobody can probe for other people's IDs.
+        Raises OrderNotFoundError if no order has this ID, and OrderNotAllowedError if a
+        customer asks for another customer's order.
         """
         order = self._orders.get_by_id(order_id)
-        if order.customer_id != user.id:
-            raise OrderNotFoundError(f"Order {order_id} not found")
+        if user.role != UserRole.admin and order.customer_id != user.id:
+            raise OrderNotAllowedError("You do not have permission to view this order")
         return order
