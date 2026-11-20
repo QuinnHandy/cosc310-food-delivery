@@ -1,0 +1,81 @@
+from app.core.security import hash_password
+from app.repositories.user_repository import (
+    DuplicateEmailError,
+    UserNotFoundError,
+    UserRepository,
+)
+from app.schemas.customer import CustomerCreate, CustomerUpdate
+from app.schemas.user import User, UserCreateRecord, UserRole, UserUpdate
+
+
+class CustomerNotFoundError(Exception):
+    """Raised when no customer has the given ID (including IDs of owners and admins)."""
+
+
+class EmailAlreadyRegisteredError(Exception):
+    """Raised when registering with an email that another account already uses."""
+
+
+class CustomerAlreadyDeactivatedError(Exception):
+    """Raised when deactivating an account that is already deactivated."""
+
+
+class CustomerService:
+    """Customer account rules: register, view, update and deactivate. Does no file access of its own.
+
+    Customers are stored as users with role `customer`. Deactivating never deletes the
+    record, so the customer's ID, carts and orders stay valid.
+    """
+
+    def __init__(self, user_repository: UserRepository) -> None:
+        self._users = user_repository
+
+    def register(self, new: CustomerCreate) -> User:
+        """Creates a customer. The role is always `customer` and the password is stored hashed.
+
+        Raises EmailAlreadyRegisteredError if the email is taken.
+        """
+        record = UserCreateRecord(
+            email=new.email,
+            password_hash=hash_password(new.password),
+            role=UserRole.customer,
+            name=new.name,
+            phone=new.phone,
+            delivery_address=new.delivery_address,
+        )
+        try:
+            return self._users.add(record)
+        except DuplicateEmailError as exc:
+            raise EmailAlreadyRegisteredError("An account with this email already exists") from exc
+
+    def get_customer(self, customer_id: int) -> User:
+        """Raises CustomerNotFoundError if the ID is unknown or is not a customer."""
+        try:
+            user = self._users.get(customer_id)
+        except UserNotFoundError as exc:
+            raise CustomerNotFoundError(f"Customer {customer_id} not found") from exc
+        if user.role != UserRole.customer:
+            raise CustomerNotFoundError(f"Customer {customer_id} not found")
+        return user
+
+    def update_customer(self, customer_id: int, changes: CustomerUpdate) -> User:
+        """Changes only the fields sent; a field sent as null is treated as left out.
+
+        Raises CustomerNotFoundError for an unknown customer.
+        """
+        self.get_customer(customer_id)
+        update = UserUpdate(**changes.model_dump(exclude_unset=True, exclude_none=True))
+        return self._users.update(customer_id, update)
+
+    def deactivate_customer(self, customer_id: int) -> User:
+        """Sets is_active to false; the account is kept. Its sessions stop working at once,
+        because the auth check rejects deactivated users.
+
+        Raises CustomerNotFoundError, or CustomerAlreadyDeactivatedError if already deactivated.
+        """
+        customer = self.get_customer(customer_id)
+        if not customer.is_active:
+            raise CustomerAlreadyDeactivatedError(
+                f"Customer {customer_id} is already deactivated"
+            )
+        return self._users.update(customer_id, UserUpdate(is_active=False))
