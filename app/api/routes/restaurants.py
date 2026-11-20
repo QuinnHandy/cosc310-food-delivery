@@ -1,6 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from app.api.openapi import RESTAURANT_NOT_FOUND, RestaurantId, data_error
+from app.api.dependencies import require_restaurant_access, require_role
+from app.api.openapi import (
+    NOT_ALLOWED,
+    NOT_SIGNED_IN,
+    RESTAURANT_NOT_FOUND,
+    RestaurantId,
+    data_error,
+)
 from app.core.config import settings
 from app.repositories.menu_repository import MenuRepository
 from app.repositories.restaurant_repository import (
@@ -126,15 +133,20 @@ def get_restaurant_menu(
     response_model=Restaurant,
     status_code=201,
     summary="Create a restaurant",
-    responses=data_error("Stored restaurant data could not be read or saved."),
+    dependencies=[Depends(require_role("restaurant_owner", "admin"))],
+    responses={
+        **NOT_SIGNED_IN,
+        **NOT_ALLOWED,
+        **data_error("Stored restaurant data could not be read or saved."),
+    },
 )
 def create_restaurant(
     new: RestaurantCreate,
     service: RestaurantService = Depends(get_restaurant_service),
 ) -> Restaurant:
-    """Creates a restaurant and returns it with its new server-assigned `id`.
+    """Creates a restaurant and returns it with its new server-assigned `id`. Requires a signed-in `restaurant_owner` or `admin`.
 
-    Returns `422` if `name` or `cuisine` is missing or empty.
+    Returns `401` if there is no valid bearer token, `403` for any other role or a deactivated account, and `422` if `name` or `cuisine` is missing or empty.
     """
     try:
         return service.create_restaurant(new)
@@ -150,7 +162,10 @@ def create_restaurant(
     response_model=Restaurant,
     status_code=200,
     summary="Update a restaurant",
+    dependencies=[Depends(require_restaurant_access)],
     responses={
+        **NOT_SIGNED_IN,
+        **NOT_ALLOWED,
         **RESTAURANT_NOT_FOUND,
         **data_error("Stored restaurant data could not be read or saved."),
     },
@@ -160,9 +175,9 @@ def update_restaurant(
     changes: RestaurantUpdate,
     service: RestaurantService = Depends(get_restaurant_service),
 ) -> Restaurant:
-    """Partially updates a restaurant. Only the fields sent are changed, and the `id` never changes.
+    """Partially updates a restaurant. Only the fields sent are changed, and the `id` never changes. Requires an `admin` or the `restaurant_owner` of this restaurant.
 
-    Returns `422` if `restaurant_id` is not an integer, or a field sent is empty or has the wrong type.
+    Returns `401` if there is no valid bearer token and `403` for any other user or a deactivated account. A non-admin gets `403` rather than `404` for an ID that does not exist. Returns `422` if `restaurant_id` is not an integer, or a field sent is empty or has the wrong type.
     """
     try:
         return service.update_restaurant(restaurant_id, changes)

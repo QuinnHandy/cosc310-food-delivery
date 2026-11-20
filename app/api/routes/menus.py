@@ -1,7 +1,14 @@
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from app.api.openapi import RESTAURANT_NOT_FOUND, RestaurantId, data_error
+from app.api.dependencies import require_restaurant_access
+from app.api.openapi import (
+    NOT_ALLOWED,
+    NOT_SIGNED_IN,
+    RESTAURANT_NOT_FOUND,
+    RestaurantId,
+    data_error,
+)
 from app.core.config import settings
 from app.repositories.menu_repository import MenuRepository
 from app.repositories.restaurant_repository import (
@@ -36,7 +43,10 @@ def get_menu_service(
     response_model=MenuItem,
     status_code=201,
     summary="Add a menu item",
+    dependencies=[Depends(require_restaurant_access)],
     responses={
+        **NOT_SIGNED_IN,
+        **NOT_ALLOWED,
         **RESTAURANT_NOT_FOUND,
         **data_error("Stored restaurant or menu data could not be read or saved."),
     },
@@ -46,9 +56,9 @@ def add_menu_item(
     new: MenuItemCreate,
     service: MenuService = Depends(get_menu_service),
 ) -> MenuItem:
-    """Adds an item to the restaurant's menu and returns it with its new server-assigned `id` and `restaurant_id`.
+    """Adds an item to the restaurant's menu and returns it with its new server-assigned `id` and `restaurant_id`. Requires an `admin` or the `restaurant_owner` of this restaurant.
 
-    Returns `422` if `restaurant_id` is not an integer, `name`, `price`, or `category` is missing, a text field that must not be empty is empty, or `price` is not greater than 0.
+    Returns `401` if there is no valid bearer token and `403` for any other user or a deactivated account. A non-admin gets `403` rather than `404` for an ID that does not exist. Returns `422` if `restaurant_id` is not an integer, `name`, `price`, or `category` is missing, a text field that must not be empty is empty, or `price` is not greater than 0.
     """
     try:
         return service.add_menu_item(restaurant_id, new)

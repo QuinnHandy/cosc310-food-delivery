@@ -39,18 +39,18 @@ uvicorn app.main:app --reload
 ```
 The API runs at http://127.0.0.1:8000
 The customer web page is at http://127.0.0.1:8000/ (browse restaurants, search by name as you type, filter by cuisine, and click one to see its details).
-The restaurant owner page is at http://127.0.0.1:8000/owner (add a restaurant, or click Edit on one to change it). 
+The restaurant owner page is at http://127.0.0.1:8000/owner (add a restaurant, or click Edit on one to change it). Changes need an owner or admin token. The page sends the token saved in the browser's `localStorage` under `authToken`; until the sign-in page exists (#97), sign in at `/docs` and run `localStorage.setItem("authToken", "<token>")` in the browser console. 
 
 ## API Endpoints
 | Method | Path | Description |
 |---|---|---|
 | GET | `/health` | Health check, returns 200 `{"status": "ok"}` |
 | GET | `/restaurants` | Lists all restaurants sorted by ID. Optional query parameters: `name` (partial match, ignores case) and `cuisine` (exact match, ignores case). No matches returns 200 with `[]` |
-| POST | `/restaurants` | Create a restaurant (`name`, `cuisine`). Returns 201 with the new restaurant |
+| POST | `/restaurants` | Create a restaurant (`name`, `cuisine`). Returns 201 with the new restaurant. Needs a restaurant owner or admin token (401 without a valid token, 403 for other roles) |
 | GET | `/restaurants/{restaurant_id}` | Details for one restaurant (404 if the ID doesn't exist) |
-| PATCH | `/restaurants/{restaurant_id}` | Update a restaurant's `name` and/or `cuisine` (404 if the ID doesn't exist) |
+| PATCH | `/restaurants/{restaurant_id}` | Update a restaurant's `name` and/or `cuisine` (404 if the ID doesn't exist). Needs that restaurant's owner or an admin (401 without a valid token, 403 for anyone else) |
 | GET | `/restaurants/{restaurant_id}/menu` | A restaurant's menu items sorted by ID (404 if the restaurant doesn't exist; `items` is `[]` if it has none) |
-| POST | `/restaurants/{restaurant_id}/menu` | Add a menu item (`name`, `price`, `category`, plus optional `description`, `is_available`, `image_url`). Returns 201 with the new item (404 if the restaurant doesn't exist) |
+| POST | `/restaurants/{restaurant_id}/menu` | Add a menu item (`name`, `price`, `category`, plus optional `description`, `is_available`, `image_url`). Returns 201 with the new item (404 if the restaurant doesn't exist). Needs that restaurant's owner or an admin (401 without a valid token, 403 for anyone else) |
 | POST | `/auth/login` | Sign in with `email` and `password`. Returns 200 with `token`, `user_id` and `role` (401 if the details are wrong, 403 if the account is deactivated) |
 | POST | `/auth/logout` | Sign out using `Authorization: Bearer <token>`. Returns 200 with a message (401 if the token is missing or not valid) |
 
@@ -105,6 +105,17 @@ Both are checked in the backend, in two FastAPI dependencies in [app/api/depende
 | Valid token, active account and allowed role | The request goes ahead |
 | Stored user or session data cannot be read | `500` with a fixed message that does not quote stored data |
 
+Routes that use them:
+
+| Route | Who may call it |
+|---|---|
+| `GET /restaurants`, `GET /restaurants/{id}`, `GET /restaurants/{id}/menu`, `GET /health`, `POST /auth/login` | Anyone, no token |
+| `POST /auth/logout` | Any valid token (it only needs `get_bearer_token`, since it deletes the session) |
+| `POST /restaurants` | `require_role("restaurant_owner", "admin")` |
+| `PATCH /restaurants/{id}`, `POST /restaurants/{id}/menu` | `require_restaurant_access`: an admin, or the owner whose `restaurant_id` equals `{id}` |
+
+`require_restaurant_access` is the one reusable check for "this restaurant or its menu". Put it on any route with a `restaurant_id` path parameter that changes that restaurant. It does not look the restaurant up, so a non-admin gets `403` (not `404`) for an ID that does not exist, and cannot tell which IDs exist.
+
 The checks run before the request body is validated, so a request without a valid token gets `401` even if its body is also wrong. In `/docs`, routes that use these dependencies show a padlock, and **Authorize** sends the token (see Demo accounts above). `tests/test_auth_dependencies.py` covers each row of the table on a small test-only app, using temporary data.
 
 ## Repository Structure
@@ -137,7 +148,7 @@ or a single test file with
 python -m pytest tests/test_restaurant_search.py -v
 ```
 
-Tests that write data use temporary JSON files (`tmp_path` and `app.dependency_overrides`), so running the suite never changes the files in `data/`.
+Tests that write data use temporary JSON files (`tmp_path` and `app.dependency_overrides`), so running the suite never changes the files in `data/`. Tests that call protected routes use the `auth` fixture in `tests/auth_helpers.py`, which gives each seeded user (admin, two owners, a customer, a deactivated customer) a saved token.
 
 The test suite covers:
 - **API endpoints**
@@ -151,6 +162,7 @@ The test suite covers:
   - viewing a restaurant's menu (`test_restaurant_menu.py`)
   - adding a menu item (`test_add_menu_item.py`)
   - the auth dependencies: 401 and 403 cases for `get_current_user` and `require_role` (`test_auth_dependencies.py`)
+  - who may change restaurants and menus: 401, 403 and owner/admin success cases, and public reads without a token (`test_restaurant_authorization.py`)
 - **Services:** search, details and menu logic tested with a mocked repository (in `test_restaurant_search.py`, `test_restaurant_details.py` and `test_restaurant_menu.py`)
 - **Repositories**
   - loading restaurants and handling invalid JSON (`test_restaurant_repository.py`)
