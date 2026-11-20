@@ -7,27 +7,73 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from app.api.openapi import RestaurantId
 from app.core.config import settings
+from app.repositories.cart_repository import CartRepository
+from app.repositories.menu_repository import MenuRepository
+from app.repositories.order_repository import OrderRepository
 from app.repositories.restaurant_repository import DataAccessError, RestaurantRepository
 from app.repositories.session_repository import SessionRepository
 from app.repositories.user_repository import UserRepository
 from app.schemas.user import User, UserRole
-from app.services.customer_service import CustomerService
 from app.services.auth_service import (
     AccountDeactivatedError,
     AuthService,
     InvalidCredentialsError,
 )
+from app.services.cart_service import CartService
+from app.services.checkout_service import CheckoutService
+from app.services.customer_service import CustomerService
+from app.services.menu_service import MenuService
+from app.services.order_service import OrderService
+from app.services.restaurant_service import RestaurantService
 
 bearer_scheme = HTTPBearer(auto_error=False, description="Token from POST /auth/login")
 
 
-def get_user_repository() -> UserRepository:
-    restaurant_repository = RestaurantRepository(settings.data_dir / "restaurants.json")
+# --- Repositories ---------------------------------------------------------------------------
+# Tests replace a provider in one place: `app.dependency_overrides[get_menu_repository] = ...`
+
+
+def get_restaurant_repository() -> RestaurantRepository:
+    return RestaurantRepository(settings.data_dir / "restaurants.json")
+
+
+def get_menu_repository(
+    restaurant_repository: RestaurantRepository = Depends(get_restaurant_repository),
+) -> MenuRepository:
+    return MenuRepository(settings.data_dir / "menus.json", restaurant_repository)
+
+
+def get_user_repository(
+    restaurant_repository: RestaurantRepository = Depends(get_restaurant_repository),
+) -> UserRepository:
     return UserRepository(settings.data_dir / "users.json", restaurant_repository)
 
 
 def get_session_repository() -> SessionRepository:
     return SessionRepository(settings.data_dir / "sessions.json")
+
+
+def get_cart_repository() -> CartRepository:
+    return CartRepository(settings.data_dir / "carts.json")
+
+
+def get_order_repository() -> OrderRepository:
+    return OrderRepository(settings.data_dir / "orders.json")
+
+
+# --- Services -------------------------------------------------------------------------------
+
+
+def get_restaurant_service(
+    repository: RestaurantRepository = Depends(get_restaurant_repository),
+) -> RestaurantService:
+    return RestaurantService(repository)
+
+
+def get_menu_service(
+    repository: MenuRepository = Depends(get_menu_repository),
+) -> MenuService:
+    return MenuService(repository)
 
 
 def get_auth_service(
@@ -41,6 +87,40 @@ def get_customer_service(
     user_repository: UserRepository = Depends(get_user_repository),
 ) -> CustomerService:
     return CustomerService(user_repository)
+
+
+def get_cart_service(
+    cart_repository: CartRepository = Depends(get_cart_repository),
+    menu_repository: MenuRepository = Depends(get_menu_repository),
+) -> CartService:
+    return CartService(cart_repository, menu_repository, settings.delivery_fee)
+
+
+def get_checkout_service(
+    customer_service: CustomerService = Depends(get_customer_service),
+    cart_service: CartService = Depends(get_cart_service),
+    menu_repository: MenuRepository = Depends(get_menu_repository),
+    restaurant_repository: RestaurantRepository = Depends(get_restaurant_repository),
+    order_repository: OrderRepository = Depends(get_order_repository),
+) -> CheckoutService:
+    return CheckoutService(
+        customer_service,
+        cart_service,
+        menu_repository,
+        restaurant_repository,
+        order_repository,
+        settings.delivery_fee,
+    )
+
+
+def get_order_service(
+    order_repository: OrderRepository = Depends(get_order_repository),
+    customer_service: CustomerService = Depends(get_customer_service),
+) -> OrderService:
+    return OrderService(order_repository, customer_service)
+
+
+# --- Authentication and roles ---------------------------------------------------------------
 
 
 def get_bearer_token(

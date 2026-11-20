@@ -2,15 +2,13 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Path
 
-from app.api.dependencies import get_customer_service, require_role
+from app.api.dependencies import get_order_service, require_role
 from app.api.openapi import NOT_ALLOWED, NOT_SIGNED_IN, data_error
-from app.api.routes.checkout import get_order_repository
-from app.repositories.order_repository import OrderRepository
 from app.repositories.restaurant_repository import DataAccessError
 from app.schemas.common import ErrorResponse
 from app.schemas.order import Order
 from app.schemas.user import User
-from app.services.customer_service import CustomerNotFoundError, CustomerService
+from app.services.customer_service import CustomerNotFoundError
 from app.services.order_service import OrderService
 
 router = APIRouter(tags=["orders"])
@@ -25,13 +23,6 @@ CUSTOMER_NOT_FOUND = {
     }
 }
 DATA_ERROR = data_error("Stored order or user data could not be read.")
-
-
-def get_order_service(
-    order_repository: OrderRepository = Depends(get_order_repository),
-    customer_service: CustomerService = Depends(get_customer_service),
-) -> OrderService:
-    return OrderService(order_repository, customer_service)
 
 
 def _data_error(exc: DataAccessError) -> HTTPException:

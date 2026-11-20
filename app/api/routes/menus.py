@@ -1,7 +1,7 @@
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from app.api.dependencies import require_restaurant_access
+from app.api.dependencies import get_menu_service, require_restaurant_access
 from app.api.openapi import (
     NOT_ALLOWED,
     NOT_SIGNED_IN,
@@ -9,33 +9,11 @@ from app.api.openapi import (
     RestaurantId,
     data_error,
 )
-from app.core.config import settings
-from app.repositories.menu_repository import MenuRepository
-from app.repositories.restaurant_repository import (
-    DataAccessError,
-    RestaurantNotFoundError,
-    RestaurantRepository,
-)
+from app.repositories.restaurant_repository import DataAccessError, RestaurantNotFoundError
 from app.schemas.menu import MenuItem, MenuItemCreate
 from app.services.menu_service import MenuService
 
 router = APIRouter()
-
-
-def get_menu_repository() -> MenuRepository:
-    restaurant_repository = RestaurantRepository(
-        settings.data_dir / "restaurants.json"
-    )
-    return MenuRepository(
-        settings.data_dir / "menus.json",
-        restaurant_repository,
-    )
-
-
-def get_menu_service(
-    repository: MenuRepository = Depends(get_menu_repository),
-) -> MenuService:
-    return MenuService(repository)
 
 
 @router.post(

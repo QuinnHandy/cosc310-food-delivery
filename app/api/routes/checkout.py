@@ -2,18 +2,13 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from app.api.dependencies import get_customer_service, require_role
+from app.api.dependencies import get_checkout_service, require_role
 from app.api.openapi import NOT_ALLOWED, NOT_SIGNED_IN, data_error
-from app.api.routes.cart import get_cart_service
-from app.api.routes.restaurants import get_menu_repository, get_restaurant_repository
-from app.core.config import settings
-from app.repositories.menu_repository import MenuRepository
-from app.repositories.order_repository import OrderRepository
-from app.repositories.restaurant_repository import DataAccessError, RestaurantRepository
+from app.repositories.restaurant_repository import DataAccessError
 from app.schemas.common import ErrorResponse
 from app.schemas.order import Order
 from app.schemas.user import User
-from app.services.cart_service import CartService, CustomerNotAllowedError
+from app.services.cart_service import CustomerNotAllowedError
 from app.services.checkout_service import (
     CartChangedError,
     CheckoutError,
@@ -23,32 +18,10 @@ from app.services.checkout_service import (
     EmptyCartError,
     InvalidQuantityError,
 )
-from app.services.customer_service import CustomerService
 
 router = APIRouter(tags=["checkout"])
 
 CustomerOnly = Annotated[User, Depends(require_role("customer"))]
-
-
-def get_order_repository() -> OrderRepository:
-    return OrderRepository(settings.data_dir / "orders.json")
-
-
-def get_checkout_service(
-    customer_service: CustomerService = Depends(get_customer_service),
-    cart_service: CartService = Depends(get_cart_service),
-    menu_repository: MenuRepository = Depends(get_menu_repository),
-    restaurant_repository: RestaurantRepository = Depends(get_restaurant_repository),
-    order_repository: OrderRepository = Depends(get_order_repository),
-) -> CheckoutService:
-    return CheckoutService(
-        customer_service,
-        cart_service,
-        menu_repository,
-        restaurant_repository,
-        order_repository,
-        settings.delivery_fee,
-    )
 
 
 CHECKOUT_CONFLICT = {

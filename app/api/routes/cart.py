@@ -2,12 +2,9 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Path
 
-from app.api.dependencies import require_role
+from app.api.dependencies import get_cart_service, require_role
 from app.api.openapi import NOT_ALLOWED, NOT_SIGNED_IN, data_error
-from app.api.routes.restaurants import get_menu_repository
-from app.core.config import settings
-from app.repositories.cart_repository import CartRepository
-from app.repositories.menu_repository import MenuItemNotFoundError, MenuRepository
+from app.repositories.menu_repository import MenuItemNotFoundError
 from app.repositories.restaurant_repository import DataAccessError
 from app.schemas.cart import CartItemAdd, CartItemUpdate, CartResponse
 from app.schemas.common import ErrorResponse
@@ -27,17 +24,6 @@ MenuItemId = Annotated[int, Path(description="ID of a menu item that is in the c
 
 # Every cart endpoint is for signed-in, active customers only.
 CustomerOnly = Annotated[User, Depends(require_role("customer"))]
-
-
-def get_cart_repository() -> CartRepository:
-    return CartRepository(settings.data_dir / "carts.json")
-
-
-def get_cart_service(
-    cart_repository: CartRepository = Depends(get_cart_repository),
-    menu_repository: MenuRepository = Depends(get_menu_repository),
-) -> CartService:
-    return CartService(cart_repository, menu_repository, settings.delivery_fee)
 
 
 def _error(status: int, description: str, example: str) -> dict:
