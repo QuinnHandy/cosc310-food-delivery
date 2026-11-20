@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Food Delivery - Account</title>
+    <link rel="icon" href="data:,">
+</head>
+
+<body>
+    <h1>Account</h1>
+    <p><a href="/">Back to restaurants</a></p>
+    <p id="session-bar"></p>
+    <p id="account-message" role="status"></p>
+
+    <section id="signin-section">
+        <h2>Sign in</h2>
+        <form id="signin-form">
+            <label>Email:
+                <input type="email" id="signin-email" autocomplete="username" required>
+            </label>
+            <label>Password:
+                <input type="password" id="signin-password" autocomplete="current-password" required>
+            </label>
+            <button type="submit" id="signin-submit">Sign in</button>
+        </form>
+        <p id="signin-status" role="status"></p>
+    </section>
+
+    <section id="register-section">
+        <h2>New customer? Register</h2>
+        <form id="register-form">
+            <label>Name:
+                <input type="text" id="register-name" autocomplete="name" required>
+            </label>
+            <label>Email:
+                <input type="email" id="register-email" autocomplete="email" required>
+            </label>
+            <label>Password (at least 8 characters):
+                <input type="password" id="register-password" autocomplete="new-password" required>
+            </label>
+            <label>Phone (optional):
+                <input type="tel" id="register-phone" autocomplete="tel">
+            </label>
+            <label>Delivery address (optional):
+                <input type="text" id="register-address" autocomplete="street-address">
+            </label>
+            <button type="submit" id="register-submit">Register</button>
+        </form>
+        <p id="register-status" role="status"></p>
+    </section>
+
+    <script src="/static/api.js"></script>
+    <script src="/static/session.js"></script>
+    <script src="/static/account.js"></script>
+</body>
+
+</html>
