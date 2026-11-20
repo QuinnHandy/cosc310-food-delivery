@@ -11,6 +11,7 @@ from app.repositories.restaurant_repository import DataAccessError, RestaurantRe
 from app.repositories.session_repository import SessionRepository
 from app.repositories.user_repository import UserRepository
 from app.schemas.user import User, UserRole
+from app.services.customer_service import CustomerService
 from app.services.auth_service import (
     AccountDeactivatedError,
     AuthService,
@@ -34,6 +35,12 @@ def get_auth_service(
     session_repository: SessionRepository = Depends(get_session_repository),
 ) -> AuthService:
     return AuthService(user_repository, session_repository)
+
+
+def get_customer_service(
+    user_repository: UserRepository = Depends(get_user_repository),
+) -> CustomerService:
+    return CustomerService(user_repository)
 
 
 def get_bearer_token(

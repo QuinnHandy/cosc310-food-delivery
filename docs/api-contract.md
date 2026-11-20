@@ -379,6 +379,52 @@ Added in M2 (#81). An endpoint that needs a signed-in user checks the token befo
 
 Every 401 includes `WWW-Authenticate: Bearer`. Protected endpoints show the `HTTPBearer` security scheme in OpenAPI.
 
+## Customer Accounts
+
+Added in M2 (#83-#86). Customers are stored in `data/users.json` as users with role `customer`. Responses use `CustomerResponse`, which never includes the password or its hash:
+
+```json
+{ "id": 4, "email": "alice@foodapp.test", "name": "Alice Smith", "phone": "250-555-0101", "delivery_address": "123 Main St, Kelowna, BC", "is_active": true }
+```
+
+| Method | Path | Who | Purpose | Success | Errors |
+|---|---|---|---|---|---|
+| POST | `/customers` | anyone | Register a customer | 201 | 409, 422, 500 |
+| GET | `/customers/me` | customer | View my profile | 200 | 401, 403, 500 |
+| PATCH | `/customers/me` | customer | Update my details and delivery address | 200 | 401, 403, 422, 500 |
+| POST | `/customers/me/deactivate` | customer | Deactivate my account | 200 | 401, 403, 500 |
+| GET | `/customers/{customer_id}` | admin | View any customer | 200 | 401, 403, 404, 422, 500 |
+| POST | `/customers/{customer_id}/deactivate` | admin | Deactivate any customer | 200 | 401, 403, 404, 409, 422, 500 |
+
+401 and 403 follow [Protected endpoints](#protected-endpoints). The 500 body is always `{"detail": "Could not access customer data"}`.
+
+### Register a customer
+`POST /customers`
+
+**Request body:** `CustomerCreate`. `name`, `email` and `password` are required; `phone` and `delivery_address` default to `""`.
+```json
+{ "name": "Dana Park", "email": "dana@example.com", "password": "longenough", "delivery_address": "1 Lake Rd" }
+```
+The role is always `customer`. Sending any other field, including `role`, returns 422. The email is stored lowercase, and the password is stored only as a hash. The customer can sign in straight away.
+
+**Errors**
+- `409`: `{"detail": "An account with this email already exists"}` (case is ignored)
+- `422`: empty `name`, invalid email, password shorter than 8 characters, or an unknown field
+
+### Update my details
+`PATCH /customers/me`
+
+**Request body:** `CustomerUpdate`, any of `name`, `phone`, `delivery_address`. A field left out or sent as `null` keeps its value. `phone` may be set to `""`; `name` and `delivery_address` may not be empty.
+
+**Decision (#85):** any other field (`email`, `role`, `id`, `is_active`, ...) is **rejected with 422**, not silently ignored, so a client finds out at once that it cannot change it.
+
+### Deactivate an account
+`POST /customers/me/deactivate` (customer) or `POST /customers/{customer_id}/deactivate` (admin). No request body. Returns the customer with `is_active: false`.
+
+The account is kept, not deleted, so its ID, carts and orders stay valid. Afterwards, signing in returns 403 and the customer's existing tokens get 403 on every protected endpoint.
+
+**Decision (#86):** deactivating an already-deactivated customer through the admin endpoint returns **409** `{"detail": "Customer 6 is already deactivated"}`. Through `/customers/me` it cannot happen: the deactivated customer's token already gets 403.
+
 ## Existing Endpoints (unchanged from M0)
 
 | Method | Path | Response |
