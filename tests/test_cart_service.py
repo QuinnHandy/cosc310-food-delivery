@@ -16,6 +16,8 @@ from app.repositories.menu_repository import MenuItemNotFoundError, MenuReposito
 from app.repositories.restaurant_repository import RestaurantRepository
 from app.repositories.user_repository import UserRepository
 from app.schemas.menu import MenuItemUpdate
+from app.services.customer_service import CustomerService
+from app.services.menu_service import MenuService
 from app.services.cart_service import (
     CartItemNotInCartError,
     CartService,
@@ -37,7 +39,7 @@ def env(tmp_path):
     users = UserRepository(tmp_path / "users.json", restaurants)
     carts = CartRepository(tmp_path / "carts.json")
     return {
-        "service": CartService(carts, menus, FEE),
+        "service": CartService(carts, MenuService(menus), CustomerService(users), FEE),
         "menus": menus,
         "carts": carts,
         "alice": users.get(4),
@@ -185,7 +187,8 @@ def test_cart_survives_a_restart(env, tmp_path):
     restaurants = RestaurantRepository(tmp_path / "restaurants.json")
     fresh = CartService(
         CartRepository(tmp_path / "carts.json"),
-        MenuRepository(tmp_path / "menus.json", restaurants),
+        MenuService(MenuRepository(tmp_path / "menus.json", restaurants)),
+        CustomerService(UserRepository(tmp_path / "users.json", restaurants)),
         FEE,
     )
     cart = fresh.get_cart(env["alice"])
