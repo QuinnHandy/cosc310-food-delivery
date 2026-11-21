@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class MenuItemCreate(BaseModel):
@@ -33,6 +33,14 @@ class MenuItemUpdate(BaseModel):
         default=None, min_length=1, description="New menu section. Must not be empty if sent."
     )
     image_url: str | None = Field(default=None, description="New image link.")
+
+    @model_validator(mode="after")
+    def reject_explicit_nulls(self):
+        """A field may be left out, but not sent as null (a stored item can't have null fields)."""
+        for field in self.model_fields_set:
+            if getattr(self, field) is None:
+                raise ValueError(f"{field} cannot be null")
+        return self
 
 
 class MenuItem(MenuItemCreate):

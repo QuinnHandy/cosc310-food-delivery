@@ -59,3 +59,19 @@ class MenuRepository:
                 self._save_items(items)
                 return items[index]
         raise MenuItemNotFoundError(f"Menu item {item_id} not found for restaurant {restaurant_id}")
+
+    def deactivate_item(self, restaurant_id: int, item_id: int) -> MenuItem:
+        """Soft delete: sets is_active to false and keeps the item stored, because carts and
+        orders refer to its ID. Deactivating an already deactivated item changes nothing.
+
+        Raises RestaurantNotFoundError or MenuItemNotFoundError.
+        """
+        self._restaurant_repository.get(restaurant_id)
+        items = self._load_items()
+        for index, existing in enumerate(items):
+            if existing.id == item_id and existing.restaurant_id == restaurant_id:
+                if existing.is_active:
+                    items[index] = existing.model_copy(update={"is_active": False})
+                    self._save_items(items)
+                return items[index]
+        raise MenuItemNotFoundError(f"Menu item {item_id} not found for restaurant {restaurant_id}")
