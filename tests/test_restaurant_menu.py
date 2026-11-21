@@ -84,9 +84,10 @@ def test_get_menu_restaurant_without_items_returns_empty_list(client):
 def test_get_menu_unknown_restaurant_returns_404(client):
     response = client.get("/restaurants/99/menu")
 
+    assert response.status_code == 404
     assert response.json() == {
-    "detail": "Restaurant 99 not found",
-    "code": "not_found",
+        "detail": "Restaurant 99 not found",
+        "code": "not_found",
     }
 
 
