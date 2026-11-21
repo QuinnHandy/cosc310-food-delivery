@@ -19,6 +19,8 @@ from app.api.dependencies import (
     require_role,
 )
 from app.core.config import PROJECT_ROOT
+from app.core.errors import DomainError
+from app.main import domain_error_handler
 from app.repositories.restaurant_repository import RestaurantRepository
 from app.repositories.session_repository import SessionRepository
 from app.repositories.user_repository import UserRepository
@@ -34,6 +36,8 @@ ADMIN, OWNER, CUSTOMER, DEACTIVATED = 1, 2, 4, 6
 def create_test_app() -> FastAPI:
     test_app = FastAPI()
 
+    test_app.add_exception_handler(DomainError, domain_error_handler)
+
     @test_app.get("/whoami")
     def whoami(user: User = Depends(get_current_user)):
         return {"id": user.id, "role": user.role}
@@ -45,6 +49,7 @@ def create_test_app() -> FastAPI:
     @test_app.get("/staff")
     def staff(user: User = Depends(require_role("restaurant_owner", "admin"))):
         return {"id": user.id}
+
 
     return test_app
 
@@ -128,7 +133,10 @@ def test_deactivated_user_gives_403(env):
     response = client.get("/whoami", headers=sign_in(DEACTIVATED))
 
     assert response.status_code == 403
-    assert response.json() == {"detail": "This account has been deactivated"}
+    assert response.json() == {
+        "detail": "This account has been deactivated",
+        "code": "forbidden",
+    }
     assert "WWW-Authenticate" not in response.headers
 
 
@@ -173,8 +181,10 @@ def test_unreadable_user_data_gives_500_without_details(env):
     response = client.get("/whoami", headers=headers)
 
     assert response.status_code == 500
-    assert response.json() == {"detail": "Could not verify the sign-in"}
-
+    assert response.json() == {
+        "detail": "Could not access application data",
+        "code": "data_access_error",
+    }
 
 # --- require_role -------------------------------------------------------------------------
 
@@ -198,7 +208,10 @@ def test_wrong_role_gives_403(env, path, user_id):
     response = client.get(path, headers=sign_in(user_id))
 
     assert response.status_code == 403
-    assert response.json() == {"detail": "You do not have permission to do this"}
+    assert response.json() == {
+        "detail": "You do not have permission to do this",
+        "code": "forbidden",
+    }
     assert "WWW-Authenticate" not in response.headers
 
 

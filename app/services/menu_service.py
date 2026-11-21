@@ -1,8 +1,9 @@
+from app.core.errors import ConflictError
 from app.repositories.menu_repository import MenuRepository
 from app.schemas.menu import Menu, MenuItem, MenuItemCreate, MenuItemUpdate
 
 
-class MenuItemUnavailableError(Exception):
+class MenuItemUnavailableError(ConflictError):
     """Raised when an item exists but cannot be ordered (unavailable or deactivated)."""
 
 

@@ -213,3 +213,20 @@ def test_item_routes_are_documented(app_data):
     assert {"200", "401", "403", "404", "422", "500"} <= patch["responses"].keys()
     assert {"204", "401", "403", "404", "422", "500"} <= delete["responses"].keys()
     assert all(p["description"] for p in patch["parameters"] + delete["parameters"])
+
+
+def test_patch_rejects_mixed_valid_and_null_fields_without_saving(app_data):
+    """Regression for #105, discovered during PR #130 review:
+    an explicit null field previously caused a server error instead of 422.
+    """
+    client, h = app_data.client, app_data.headers
+    before = stored_items(app_data)
+
+    response = client.patch(
+        "/restaurants/1/menu/items/1",
+        json={"name": "Updated Dish", "price": None},
+        headers=h["owner1"],
+    )
+
+    assert response.status_code == 422
+    assert stored_items(app_data) == before

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 
 from app.api.dependencies import (
     get_menu_service,
@@ -13,7 +13,6 @@ from app.api.openapi import (
     RestaurantId,
     data_error,
 )
-from app.repositories.restaurant_repository import DataAccessError, RestaurantNotFoundError
 from app.schemas.menu import MenuResponse
 from app.schemas.restaurant import Restaurant, RestaurantCreate, RestaurantUpdate
 from app.services.menu_service import MenuService
@@ -43,13 +42,7 @@ def list_restaurants(
 
     Spaces around a value are trimmed, and an empty or spaces-only value is ignored. If nothing matches, the response is `200` with an empty list, not a `404`.
     """
-    try:
-        return service.search_restaurants(name=name, cuisine=cuisine)
-    except DataAccessError as exc:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Could not load restaurant data: {exc}",
-        ) from exc
+    return service.search_restaurants(name=name, cuisine=cuisine)
 
 
 @router.get(
@@ -65,16 +58,9 @@ def get_restaurant(
     restaurant_id: RestaurantId,
     service: RestaurantService = Depends(get_restaurant_service),
 ) -> Restaurant:
-    """Returns one restaurant by its ID. Returns `422` if `restaurant_id` is not an integer."""
-    try:
-        return service.get_restaurant(restaurant_id)
-    except RestaurantNotFoundError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except DataAccessError as exc:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Could not load restaurant data: {exc}",
-        ) from exc
+    """Returns a restaurant by its ID."""
+    return service.get_restaurant(restaurant_id)
+
 
 
 @router.get(
@@ -86,24 +72,15 @@ def get_restaurant(
         **data_error("Stored restaurant or menu data could not be read."),
     },
 )
+
 def get_restaurant_menu(
     restaurant_id: RestaurantId,
     service: MenuService = Depends(get_menu_service),
 ) -> MenuResponse:
-    """Returns the restaurant's menu items sorted by ID. Unavailable items are included with `is_available: false`.
+    """Returns the restaurant's menu items sorted by ID."""
+    menu = service.get_menu(restaurant_id)
+    return MenuResponse.model_validate(menu.model_dump())
 
-    A restaurant with no items returns `200` with an empty `items` list. Returns `422` if `restaurant_id` is not an integer.
-    """
-    try:
-        menu = service.get_menu(restaurant_id)
-        return MenuResponse.model_validate(menu.model_dump())
-    except RestaurantNotFoundError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except DataAccessError as exc:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Could not load menu data: {exc}",
-        ) from exc
 
 @router.post(
     "/restaurants",
@@ -125,13 +102,7 @@ def create_restaurant(
 
     Returns `401` if there is no valid bearer token, `403` for any other role or a deactivated account, and `422` if `name` or `cuisine` is missing or empty.
     """
-    try:
-        return service.create_restaurant(new)
-    except DataAccessError as exc:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Could not save restaurant data: {exc}",
-        ) from exc
+    return service.create_restaurant(new)
 
 
 @router.patch(
@@ -156,17 +127,4 @@ def update_restaurant(
 
     Returns `401` if there is no valid bearer token and `403` for any other user or a deactivated account. A non-admin gets `403` rather than `404` for an ID that does not exist. Returns `422` if `restaurant_id` is not an integer, or a field sent is empty or has the wrong type.
     """
-    try:
-        return service.update_restaurant(restaurant_id, changes)
-
-    except RestaurantNotFoundError as exc:
-        raise HTTPException(
-            status_code=404,
-            detail=str(exc),
-        ) from exc
-
-    except DataAccessError as exc:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Could not update restaurant data: {exc}",
-        ) from exc
+    return service.update_restaurant(restaurant_id, changes)

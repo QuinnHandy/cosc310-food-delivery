@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from app.core.errors import NotFoundError
 from app.repositories.json_store import (  # noqa: F401  (re-exported for existing imports)
     DataAccessError,
     JsonStore,
@@ -9,7 +10,7 @@ from app.repositories.json_store import (  # noqa: F401  (re-exported for existi
 from app.schemas.restaurant import Restaurant, RestaurantCreate, RestaurantUpdate
 
 
-class RestaurantNotFoundError(Exception):
+class RestaurantNotFoundError(NotFoundError):
     """Raised when a restaurant ID does not exist."""
 
 

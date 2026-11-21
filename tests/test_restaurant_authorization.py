@@ -33,8 +33,10 @@ MENU = [
 ]
 NEW_RESTAURANT = {"name": "Pizza Palace", "cuisine": "Italian"}
 NEW_ITEM = {"name": "Spring Rolls", "price": 6.0, "category": "Starters"}
-DENIED_RESPONSE = {"detail": "You do not have permission to change this restaurant"}
-
+DENIED_RESPONSE = {
+    "detail": "You do not have permission to change this restaurant",
+    "code": "forbidden",
+}
 
 @pytest.fixture
 def env(tmp_path, auth):

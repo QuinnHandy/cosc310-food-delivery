@@ -102,8 +102,10 @@ def test_corrupt_user_file_gets_500_without_leaking_records(client):
     response = test_client.post("/auth/login", json=ALICE)
 
     assert response.status_code == 500
-    assert response.json() == {"detail": "Could not complete sign in"}
-
+    assert response.json() == {
+        "detail": "Could not access application data",
+        "code": "data_access_error",
+    }
 
 def test_logout_ends_the_session(client):
     test_client, _ = client
@@ -130,7 +132,10 @@ def test_logout_without_bearer_token_gets_401(client, headers):
     response = test_client.post("/auth/logout", headers=headers)
 
     assert response.status_code == 401
-    assert response.json() == {"detail": "Not authenticated"}
+    assert response.json() == {
+        "detail": "Not authenticated",
+        "code": "unauthorized",
+    }
     assert response.headers["WWW-Authenticate"] == "Bearer"
 
 
@@ -142,8 +147,10 @@ def test_corrupt_session_file_gets_500_on_logout(client):
     response = test_client.post("/auth/logout", headers=bearer("any-token"))
 
     assert response.status_code == 500
-    assert response.json() == {"detail": "Could not complete sign out"}
-
+    assert response.json() == {
+        "detail": "Could not access application data",
+        "code": "data_access_error",
+    }
 
 # The real providers (not the test overrides) read and write under settings.data_dir.
 def test_default_providers_use_the_configured_data_folder(tmp_path, monkeypatch):

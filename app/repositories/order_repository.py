@@ -1,11 +1,12 @@
 from datetime import datetime, timezone
 from pathlib import Path
 
+from app.core.errors import NotFoundError
 from app.repositories.json_store import JsonStore, next_id
 from app.schemas.order import Order, OrderDraft
 
 
-class OrderNotFoundError(Exception):
+class OrderNotFoundError(NotFoundError):
     """Raised when an order ID does not exist."""
 
 
