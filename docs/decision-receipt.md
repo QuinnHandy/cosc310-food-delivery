@@ -143,7 +143,7 @@ In `restaurant_repository.py`, the existing restaurant data is combined with the
 
 # M2.1 Decision Receipt (Asher Nathan): One shared JSON store for every repository
 
-> Draft prepared with the PR for #108, to be confirmed and completed with the team in the M2 lab.
+> Status: Accepted and implemented
 
 - **Date:** 2026-11-19
 - **Status:** Proposed (PR for #108)
@@ -178,7 +178,7 @@ Integration also exposed a real defect in the copied save code. `write_json_atom
 
 # M2.1 Decision Receipt (Quinn Handy): One home for the rules the cart and checkout share
 
-> Draft prepared with the PR for #109, to be confirmed with the team.
+> Status: Accepted and implemented
 
 - **Date:** 2026-11-20
 - **Status:** Proposed (PR for #109)
@@ -218,3 +218,105 @@ The copies had already drifted. Checkout re-read the customer from storage, but 
 - A rule change, such as adding "restaurant is closed", now happens in one method, and both the cart and checkout pick it up.
 - Cart operations now re-read the customer each time, which is one extra small file read per request. That's acceptable for our JSON storage, and it's what makes the stale-user case safe.
 - `CartService` now depends on two more services. The wiring lives in `app/api/dependencies.py`, from #106, so the routes didn't change.
+
+---
+
+# M2.1 Decision Receipt (Samuel Mwanduka): One place for dependency providers
+
+> Status: Accepted and implemented
+
+- **Date:** 2026-11-20
+- **Status:** Implemented (PR #134); team confirmation pending
+- **Decided by:** Samuel Mwanduka; to be reviewed by the team
+- **Milestone:** M2, Integrated Core System
+- **Issue / PR / tests:** #106 / PR #134 / `tests/test_dependency_providers.py`
+
+## Weakness found during integration
+
+As M2 added customer accounts, carts, checkout, and orders, dependency providers became spread across multiple route files. For example, `get_menu_repository` and `get_menu_service` were defined in both `restaurants.py` and `menus.py`.
+
+Some route files also imported dependency providers from other routes. This created unnecessary coupling and meant that changing a service could require updates in multiple files. It also made testing harder because overriding one provider would not necessarily replace the other copies.
+
+## Options considered
+
+1. **Move all providers into `app/api/dependencies.py` (chosen):** One shared location for creating repositories and services, while routes import what they need.
+2. **Keep providers in individual route files:** Requires less refactoring but leaves duplicated code and makes dependencies harder to manage.
+3. **Use a separate dependency container:** More flexible for a larger application, but adds complexity that is unnecessary for our project.
+
+## Decision
+
+`app/api/dependencies.py` now contains the repository and service providers for restaurants, menus, users, authentication, customers, carts, checkout, and orders.
+
+The route modules import these shared providers instead of creating their own. Existing authentication dependencies remain in the same module.
+
+Tests can now override a dependency in one place using FastAPI's `app.dependency_overrides`, without needing to replace multiple definitions.
+
+## Evidence
+
+- **Before → after:** Providers were spread across several route files. Duplicated menu providers in `restaurants.py` and `menus.py` were consolidated into `dependencies.py`.
+- **Tests:** `tests/test_dependency_providers.py` verifies that route modules no longer define their own repository or service providers.
+- **Behaviour unchanged:** Existing test assertions did not need changes. Relevant imports were updated, and the full pytest suite passed after the refactor.
+- **PR:** #134 replaced the earlier #131 implementation after merge conflicts.
+
+## Consequences
+
+- New services can be added without creating dependency providers in multiple route files.
+- Tests are easier to maintain because dependencies can be overridden in one location.
+- `dependencies.py` is now responsible for more service construction, so the file may become larger as the application grows.
+- If the system becomes significantly more complex, the providers could be split into smaller modules.
+
+---
+
+# M2.1 Decision Receipt (Timo Clement): One handler for domain errors
+
+> Status: Accepted and implemented
+
+- **Date:** 2026-11-20
+- **Status:** Implemented (PR #141); team confirmation pending
+- **Decided by:** Timo Clement; to be reviewed by the team
+- **Milestone:** M2, Integrated Core System
+- **Issue / PR / tests:** #107 / PR #141 / `tests/test_domain_errors.py`
+
+## Weakness found during integration
+
+Before the refactor, each API route manually caught exceptions from services and repositories and converted them into FastAPI `HTTPException` responses.
+
+As M2 added customer accounts, carts, checkout, and orders, more error types were introduced, such as unauthorized access, unavailable items, invalid states, and data access failures.
+
+This led to repeated `try/except` blocks across route files. It also increased the risk of different endpoints returning inconsistent status codes or error messages for similar problems.
+
+## Options considered
+
+1. **Centralized domain error handling (chosen):** Services raise shared domain exceptions, and one handler converts them into HTTP responses.
+2. **Keep individual route-level exception handling:** Requires fewer initial changes but continues duplicating error-handling logic.
+3. **Raise `HTTPException` directly from services:** Removes some route code but couples business logic to FastAPI.
+
+## Decision
+
+Added `app/core/errors.py` containing shared domain exceptions, including `UnauthorizedError`, `ForbiddenError`, `NotFoundError`, `ConflictError`, `BusinessRuleError`, and `DataAccessError`.
+
+A centralized exception handler in `app/main.py` converts these errors into the appropriate HTTP status codes.
+
+Domain error responses now use the same format:
+
+`{"detail": "Error message", "code": "error_code"}`
+
+Services and repositories raise domain errors, while routes no longer need to manually translate them into HTTP exceptions. The shared OpenAPI `ErrorResponse` model was also updated.
+
+FastAPI request-validation errors continue to use their standard validation response format.
+
+## Evidence
+
+- **Before → after:** Individual route files contained repeated exception handling and HTTP conversions. These are now handled centrally in `app/main.py`.
+- **Tests:** `tests/test_domain_errors.py` verifies the mappings for 401, 403, 404, 409, 422, and 500 responses.
+- **Code checks:** Verified that the old `HTTPException`, `_data_error`, and `_call` handling patterns were removed from `app/api`.
+- **Full suite:** 658 tests passed with one unrelated deprecation warning in PR #141.
+- **PR:** #141 also updated the shared OpenAPI error schema and examples.
+
+## Consequences
+
+- All endpoints return consistent domain error responses, making API behaviour easier to understand and test.
+- Routes are simpler because they no longer need repeated exception-handling blocks.
+- Business logic is less dependent on FastAPI because services raise domain exceptions instead of HTTP exceptions.
+- Changes to the centralized handler can affect multiple endpoints, so maintaining comprehensive error tests is important.
+- New domain error categories will need to be added to the shared exception system.
