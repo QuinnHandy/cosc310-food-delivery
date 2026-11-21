@@ -82,7 +82,8 @@ This document defines every M1 endpoint. The implementation, the tests, and the 
 | 5 | GET | `/restaurants/{restaurant_id}/menu` | View a restaurant's menu | 200 | 404, 422 |
 | 6 | GET | `/restaurants/{restaurant_id}/menu/items` | List menu items | 200 | 404, 422 |
 | 7 | POST | `/restaurants/{restaurant_id}/menu/items` | Add a menu item (the restaurant's owner or admin) | 201 | 401, 403, 404, 422 |
-| 8 | PATCH | `/restaurants/{restaurant_id}/menu/items/{item_id}` | Update a menu item (the restaurant's owner or admin) | 200 | 401, 403, 404, 422 |
+| 8 | PATCH | `/restaurants/{restaurant_id}/menu/items/{item_id}` | Update a menu item, including `is_available` (the restaurant's owner or admin) | 200 | 401, 403, 404, 422 |
+| 9 | DELETE | `/restaurants/{restaurant_id}/menu/items/{item_id}` | Deactivate a menu item, a soft delete (the restaurant's owner or admin) | 204 | 401, 403, 404 |
 
 Every endpoint can also return 500 if the stored data can't be read. The `GET` endpoints are public and need no token. For who may call the others, see [Protected endpoints](#protected-endpoints).
 
@@ -184,6 +185,7 @@ Spaces at either end of a value are trimmed. An empty or spaces-only parameter i
 - Categories appear in the order they first appear in the stored menu items.
 - Items within a category are sorted by `id`.
 - Unavailable items are included with `"is_available": false`. Use endpoint 6 with `?available=true` to get only available items.
+- **Deactivated items (#87, `is_active: false`) are hidden** from this customer menu. They stay stored; see endpoint 9.
 - A restaurant with no menu items returns `"categories": []`.
 
 **Response 200:** `Menu`
@@ -314,6 +316,22 @@ Spaces at either end of a value are trimmed. An empty or spaces-only parameter i
 - `403`: any other user, or a deactivated account. A non-admin gets `403`, not `404`, for a restaurant that does not exist.
 - `404`: the restaurant doesn't exist, the item doesn't exist, or the item belongs to a different restaurant
 - `422`: a field has the wrong type, or `price` ≤ 0
+
+**Availability (#87).** `{"is_available": false}` makes an item temporarily unavailable: customers still see it, marked unavailable, and cannot add it to a cart. `{"is_available": true}` makes it available again. `is_active` cannot be changed here (a sent `is_active` is ignored); use endpoint 9 to deactivate.
+
+### 9. Deactivate a menu item
+`DELETE /restaurants/{restaurant_id}/menu/items/{item_id}`
+
+**Path parameters:** `restaurant_id` (int), `item_id` (int)
+
+**Auth:** `Authorization: Bearer <token>` of an `admin`, or of the `restaurant_owner` whose `restaurant_id` is this `restaurant_id`. No request body.
+
+**Response 204:** no body. This is a **soft delete**: the item gets `is_active = false` and is **never removed** from `menus.json`, because past orders and carts refer to its ID. It disappears from the customer menu (endpoint 5), and customers can no longer add it to a cart (409 `"<name> is not available to order right now"`). A cart that already holds it shows `is_available: false` for that line, and checkout refuses it. Deactivating an already deactivated item also returns 204.
+
+**Errors**
+- `401`: no valid bearer token
+- `403`: any other user, or a deactivated account. A non-admin gets `403`, not `404`, for a restaurant that does not exist.
+- `404`: the restaurant doesn't exist, the item doesn't exist, or the item belongs to a different restaurant
 
 ## Authentication
 
@@ -472,7 +490,7 @@ Adding an item that is already in the cart increases its quantity. A refused req
 - An item that is not in the cart returns 404 `"Menu item 3 is not in your cart"`.
 
 ### MenuItem.is_active
-Added to `MenuItem` for the cart rule above; it defaults to `true`, so existing data still loads. Deactivating an item through the API (and hiding it from the customer menu) is #87.
+Added to `MenuItem` for the cart rule above; it defaults to `true`, so existing data still loads. An owner or admin deactivates an item with `DELETE /restaurants/{restaurant_id}/menu/items/{item_id}` (#87), which also hides it from the customer menu.
 
 ## Checkout (#94)
 

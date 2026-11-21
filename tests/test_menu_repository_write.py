@@ -94,3 +94,10 @@ def test_update_item_invalid_price_rejected(tmp_path):
     with pytest.raises(ValidationError):
         repo.update_item(1, 1, MenuItemUpdate(price=-5))
     assert menu_file.read_text(encoding="utf-8") == before
+
+
+# Regression: an explicit null used to pass validation and crash update_item with a 500.
+def test_update_model_rejects_explicit_null():
+    with pytest.raises(ValidationError):
+        MenuItemUpdate(price=None)
+    assert MenuItemUpdate().model_dump(exclude_unset=True) == {}
