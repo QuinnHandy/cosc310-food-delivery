@@ -1,583 +1,444 @@
-# M1 API Contract
+# API Contract — Milestones 1 and 2
 
-Version 1 | Milestone 1 (Restaurant vertical slice)
+Version 2 | COSC 310 Food Delivery, Team 11
 
-This document defines every M1 endpoint. The implementation, the tests, and the OpenAPI docs at `/docs` must match it. If an endpoint changes, update this file in the same PR.
+This contract describes the implemented API as of Milestone 2. It must agree with the FastAPI routes, Pydantic schemas, automated tests, and interactive OpenAPI documentation at [`/docs`](http://127.0.0.1:8000/docs). Update the contract whenever an API endpoint or behavior changes.
 
-## General Rules
+## General rules
 
 - **Base URL:** `http://127.0.0.1:8000`
-- **Format:** all request and response bodies are JSON.
-- **IDs:** assigned by the server, never sent by the client, and never changed.
-- **Updates:** `PATCH` with partial bodies. Only the fields sent are changed.
-- **Errors:** use FastAPI's format: `{"detail": "<message>"}`
+- **Format:** JSON request and response bodies, except operations with no body (including `DELETE` menu-item deactivation, which responds with 204).
+- **Authentication:** Protected operations use `Authorization: Bearer <token>`. Obtain a token from `POST /auth/login`. In `/docs`, click **Authorize** and enter the token without the `Bearer` prefix.
+- **IDs:** Server-assigned, stable integers. Resource IDs in path parameters refer to existing server records; clients do not supply IDs when creating records.
+- **Partial updates:** `PATCH` changes only the fields supplied. Validation and explicit `null` behavior are specific to each request model.
+- **Persistence:** Data is stored in JSON files under `data/`, or the directory selected by `APP_DATA_DIR`. `sessions.json` and `carts.json` are runtime-generated and git-ignored; orders are written to `orders.json`.
+- **Authorization:** Authentication and role/owner access are checked on the server, not trusted to the browser.
+
+### HTTP status codes and error bodies
 
 | Status | Meaning |
 |---|---|
-| 200 | Success |
-| 201 | Resource created |
-| 401 | Wrong email or password, or a missing or invalid bearer token |
-| 403 | The account has been deactivated, or the signed-in user is not allowed (wrong role, or not the owner of this restaurant) |
-| 404 | Restaurant or menu item not found |
-| 422 | Invalid request (missing field, wrong type, failed validation) |
-| 500 | Stored data could not be read |
+| `200` | Successful read, update, or action |
+| `201` | Resource created (restaurant, menu item, customer, or order) |
+| `204` | Successful menu-item deactivation; **no response body** |
+| `401` | Missing/invalid bearer token or incorrect login credentials |
+| `403` | Signed-in user lacks access, or the account is deactivated |
+| `404` | Requested restaurant, menu item, customer, cart line, or order does not exist |
+| `409` | Conflict, such as duplicate email, unavailable item, mixed-restaurant cart, empty checkout, or an already-deactivated account |
+| `422` | Invalid request data, or an application business-rule validation error |
+| `500` | Stored application data cannot be accessed |
 
-## Models
+**Domain errors (implemented by `app/main.py`, #107)** use a consistent response body:
 
-### Restaurant
-| Field | Type | Rules |
+```json
+{"detail": "Kung Pao Chicken is not available to order right now", "code": "conflict"}
+```
+
+| Domain error | HTTP status | `code` |
 |---|---|---|
-| id | int | Server-assigned, stable |
-| name | str | Required, not empty |
-| cuisine | str | Required, not empty |
-| description | str | Optional, defaults to "" |
-| address | str | Required, not empty |
-| image_url | str | Optional, defaults to "" |
-| rating | float | 0.0-5.0, server-managed (defaults to 0.0) |
-| review_count | int | >= 0, server-managed (defaults to 0) |
-| delivery_time_min | int | Required, minutes, >= 0 |
-| delivery_time_max | int | Required, minutes, >= delivery_time_min |
-| delivery_fee | float | Required, >= 0 |
-| min_order | float | Required, >= 0 |
+| `UnauthorizedError` | 401 | `unauthorized` |
+| `ForbiddenError` | 403 | `forbidden` |
+| `NotFoundError` | 404 | `not_found` |
+| `ConflictError` | 409 | `conflict` |
+| `BusinessRuleError` | 422 | `business_rule` |
+| `DataAccessError` | 500 | `data_access_error` |
 
-- **RestaurantCreate:** all fields except `id`, `rating`, and `review_count`
-- **RestaurantUpdate:** all RestaurantCreate fields, each optional
+For example, a storage failure is returned as `{"detail":"Could not access application data","code":"data_access_error"}`; raw storage exceptions are not exposed. Domain-generated 401 responses include the `WWW-Authenticate: Bearer` header.
 
-### MenuItem
-| Field | Type | Rules |
-|---|---|---|
-| id | int | Server-assigned, stable |
-| restaurant_id | int | The restaurant this item belongs to |
-| name | str | Required, not empty |
-| description | str | Optional, defaults to "" |
-| price | float | Required, greater than 0 |
-| is_available | bool | Defaults to true |
-| category | str | Required, e.g. "Pizza", "Starters" |
-| image_url | str | Optional, defaults to "" |
+**FastAPI/Pydantic validation errors** (such as malformed input, missing required fields, incorrect path types, or invalid schema values) are separate from domain errors and use FastAPI's normal `422` structure with a `detail` array. They do **not** use the `detail`/`code` domain-error object. Endpoint error tables below list relevant status codes; a protected route can also return 500 on storage failure.
 
-- **MenuItemCreate:** `name`, `description`, `price`, `is_available`, `category`, `image_url`. `id` and `restaurant_id` are set by the server.
-- **MenuItemUpdate:** all MenuItemCreate fields, each optional
+### Access shorthand
 
-### Menu
-| Field | Type |
+| Label | Who can call it |
 |---|---|
-| restaurant_id | int |
-| restaurant_name | str |
-| categories | list[MenuCategory] |
+| Public | No token needed |
+| Authenticated | Any valid bearer token, subject to session validation |
+| Customer | Signed-in, active customer |
+| Admin | Signed-in, active administrator |
+| Owner/admin | Active restaurant owner or administrator; owner must own the restaurant identified by the path when one is specified |
+| Customer/admin | Active customer (own orders only) or active administrator (any order) |
 
-### MenuCategory
-| Field | Type |
-|---|---|
-| name | str |
-| items | list[MenuItem] |
+An active customer must be rechecked against stored account state. Owners may change only their restaurant, enforced by `require_restaurant_access` in `app/api/dependencies.py`. For restaurant-specific write operations, a non-admin user without ownership gets 403 even if the restaurant ID does not exist.
 
-## Endpoint Summary
+## Endpoint summary
 
-| # | Method | Path | Purpose | Success | Errors |
-|---|---|---|---|---|---|
-| 1 | GET | `/restaurants` | List restaurants, with optional search/filter | 200 | 422 |
-| 2 | GET | `/restaurants/{restaurant_id}` | Restaurant details | 200 | 404, 422 |
-| 3 | POST | `/restaurants` | Create a restaurant (owner or admin) | 201 | 401, 403, 422 |
-| 4 | PATCH | `/restaurants/{restaurant_id}` | Update a restaurant (its owner or admin) | 200 | 401, 403, 404, 422 |
-| 5 | GET | `/restaurants/{restaurant_id}/menu` | View a restaurant's menu | 200 | 404, 422 |
-| 6 | GET | `/restaurants/{restaurant_id}/menu/items` | List menu items | 200 | 404, 422 |
-| 7 | POST | `/restaurants/{restaurant_id}/menu/items` | Add a menu item (the restaurant's owner or admin) | 201 | 401, 403, 404, 422 |
-| 8 | PATCH | `/restaurants/{restaurant_id}/menu/items/{item_id}` | Update a menu item, including `is_available` (the restaurant's owner or admin) | 200 | 401, 403, 404, 422 |
-| 9 | DELETE | `/restaurants/{restaurant_id}/menu/items/{item_id}` | Deactivate a menu item, a soft delete (the restaurant's owner or admin) | 204 | 401, 403, 404 |
+`422` may also arise from invalid path/query/body values. `500` applies to data-backed operations, not `/health`; the table shows it explicitly for restaurant listing, where it is the only normal application error.
 
-Every endpoint can also return 500 if the stored data can't be read. The `GET` endpoints are public and need no token. For who may call the others, see [Protected endpoints](#protected-endpoints).
+| Method | Endpoint | Access | Success | Main errors |
+|---|---|---|---|---|
+| GET | `/health` | Public | 200 | — |
+| GET | `/restaurants` | Public | 200 | 500 |
+| GET | `/restaurants/{restaurant_id}` | Public | 200 | 404, 422 |
+| POST | `/restaurants` | Owner/admin | 201 | 401, 403, 422 |
+| PATCH | `/restaurants/{restaurant_id}` | Owner/admin | 200 | 401, 403, 404, 422 |
+| GET | `/restaurants/{restaurant_id}/menu` | Public | 200 | 404, 422 |
+| POST | `/restaurants/{restaurant_id}/menu` | Owner/admin | 201 | 401, 403, 404, 422 |
+| PATCH | `/restaurants/{restaurant_id}/menu/items/{item_id}` | Owner/admin | 200 | 401, 403, 404, 422 |
+| DELETE | `/restaurants/{restaurant_id}/menu/items/{item_id}` | Owner/admin | 204 | 401, 403, 404, 422 |
+| POST | `/auth/login` | Public | 200 | 401, 403, 422 |
+| POST | `/auth/logout` | Authenticated | 200 | 401 |
+| POST | `/customers` | Public | 201 | 409, 422 |
+| GET | `/customers/me` | Customer | 200 | 401, 403 |
+| PATCH | `/customers/me` | Customer | 200 | 401, 403, 422 |
+| POST | `/customers/me/deactivate` | Customer | 200 | 401, 403 |
+| GET | `/customers/{customer_id}` | Admin | 200 | 401, 403, 404, 422 |
+| POST | `/customers/{customer_id}/deactivate` | Admin | 200 | 401, 403, 404, 409, 422 |
+| GET | `/cart` | Customer | 200 | 401, 403 |
+| POST | `/cart/items` | Customer | 200 | 401, 403, 404, 409, 422 |
+| PATCH | `/cart/items/{menu_item_id}` | Customer | 200 | 401, 403, 404, 422 |
+| DELETE | `/cart/items/{menu_item_id}` | Customer | 200 | 401, 403, 404, 422 |
+| DELETE | `/cart/items` | Customer | 200 | 401, 403 |
+| POST | `/checkout` | Customer | 201 | 401, 403, 409, 422 |
+| GET | `/customers/me/orders` | Customer | 200 | 401, 403 |
+| GET | `/customers/{customer_id}/orders` | Admin | 200 | 401, 403, 404, 422 |
+| GET | `/orders/{order_id}` | Customer/admin | 200 | 401, 403, 404, 422 |
 
-## Endpoints
+**Not implemented:** `GET /restaurants/{restaurant_id}/menu/items` and `POST /restaurants/{restaurant_id}/menu/items` are obsolete paths from the M1 draft. The actual menu read and create paths are `/restaurants/{restaurant_id}/menu`, with GET and POST respectively.
 
-### 1. List, search, and filter restaurants
-`GET /restaurants`
+## API models
 
-Returns all restaurants sorted by `id`. Optional query parameters narrow the results. Filters combine with AND.
+### Restaurant models
 
-**Query parameters**
-- `name` (str, optional): partial match on restaurant name, ignoring case, e.g. `?name=piz` finds "Pizza Place".
-- `cuisine` (str, optional): exact match on cuisine, ignoring case, e.g. `?cuisine=italian`. A partial value like `?cuisine=ital` matches nothing.
+`Restaurant`: `id: int` (server-assigned), `name: str`, `cuisine: str`.
 
-Spaces at either end of a value are trimmed. An empty or spaces-only parameter is ignored, so `?name=` returns every restaurant. If both parameters are given, a restaurant must match both.
+`RestaurantCreate`: required non-empty `name` and `cuisine`. The server assigns `id`.
 
-**Response 200:** `list[Restaurant]`, sorted by `id`. If nothing matches, the response is `200` with an empty list `[]`, not a `404`.
+`RestaurantUpdate`: optional `name` and `cuisine`, each required to be non-empty when provided as a new string. Unspecified fields remain unchanged.
+
 ```json
-[{
-  "id": 1,
-  "name": "Mama Rosa's Pizza",
-  "cuisine": "Italian",
-  "description": "Authentic Neapolitan pizza and homemade pasta.",
-  "address": "901 Columbus Ave, San Francisco, CA 94133",
-  "image_url": "",
-  "rating": 4.8,
-  "review_count": 342,
-  "delivery_time_min": 25,
-  "delivery_time_max": 35,
-  "delivery_fee": 2.99,
-  "min_order": 15.0
-}]
+{"id":1,"name":"Golden Dragon","cuisine":"Chinese"}
 ```
 
-### 2. Get restaurant details
-`GET /restaurants/{restaurant_id}`
+The older M1 draft listed address, delivery estimates, ratings, restaurant-specific fees, and other restaurant fields. **Those are not fields in the current `Restaurant` Pydantic model and are not part of this API contract.** The flat cart/checkout delivery fee is configured separately.
 
-**Path parameters:** `restaurant_id` (int)
+### Menu models
 
-**Response 200:** `Restaurant`
+`MenuItemCreate` (request): required `name: str` (non-empty), `price: float` (greater than zero), and `category: str` (non-empty); optional `description: str = ""`, `is_available: bool = true`, and `image_url: str = ""`.
 
-**Errors**
-- `404`: `{"detail": "Restaurant 99 not found"}`
-- `422`: `restaurant_id` isn't an integer
+`MenuItemUpdate` (PATCH request): any of `name`, `description`, `price`, `is_available`, `category`, `image_url`. Fields omitted from the request are left unchanged. **Explicit `null` values are rejected with 422**, even for an otherwise-valid partial update (#130).
 
-### 3. Create a restaurant
-`POST /restaurants`
+`MenuItem` / `MenuItemResponse`: the menu-item fields above, plus `id: int`, `restaurant_id: int`, and `is_active: bool` (defaults to true). `is_available: false` temporarily prevents ordering. `is_active: false` represents a permanent soft-deactivation via DELETE; PATCH does not set `is_active`.
 
-**Auth:** `Authorization: Bearer <token>` of a `restaurant_owner` or `admin`
+`MenuResponse` (GET): `restaurant_id: int` and `items: list[MenuItemResponse]` sorted by item ID. The response does **not** include `restaurant_name` or a nested `categories` array.
 
-**Request body:** `RestaurantCreate`
-```json
-{
-  "name": "Pasta Place",
-  "cuisine": "Italian",
-  "description": "Fresh handmade pasta and classic sauces.",
-  "address": "45 Water St, Kelowna, BC",
-  "image_url": "",
-  "delivery_time_min": 20,
-  "delivery_time_max": 30,
-  "delivery_fee": 3.49,
-  "min_order": 12.0
-}
-```
-
-**Response 201:** `Restaurant`, including its new `id`
-
-**Errors**
-- `401`: no valid bearer token
-- `403`: a `customer`, or a deactivated account
-- `422`: a required field is missing or empty, a number is negative, or `delivery_time_max` < `delivery_time_min`
-
-### 4. Update a restaurant
-`PATCH /restaurants/{restaurant_id}`
-
-**Path parameters:** `restaurant_id` (int)
-
-**Auth:** `Authorization: Bearer <token>` of an `admin`, or of the `restaurant_owner` whose `restaurant_id` is this `restaurant_id`
-
-**Request body:** `RestaurantUpdate` (only the fields to change)
-```json
-{ "delivery_fee": 1.99, "delivery_time_max": 40 }
-```
-
-**Response 200:** the updated `Restaurant`
-
-**Errors**
-- `401`: no valid bearer token
-- `403`: any other user, or a deactivated account. A non-admin gets `403`, not `404`, for a restaurant that does not exist.
-- `404`: restaurant not found
-- `422`: a field has the wrong type or is empty
-- `422`: after applying the update, `delivery_time_max` would be less than `delivery_time_min` (checked in the service layer against the stored restaurant)
-
-### 5. View a restaurant's menu
-`GET /restaurants/{restaurant_id}/menu`
-
-**Path parameters:** `restaurant_id` (int)
-
-- Categories appear in the order they first appear in the stored menu items.
-- Items within a category are sorted by `id`.
-- Unavailable items are included with `"is_available": false`. Use endpoint 6 with `?available=true` to get only available items.
-- **Deactivated items (#87, `is_active: false`) are hidden** from this customer menu. They stay stored; see endpoint 9.
-- A restaurant with no menu items returns `"categories": []`.
-
-**Response 200:** `Menu`
 ```json
 {
   "restaurant_id": 1,
-  "restaurant_name": "Mama Rosa's Pizza",
-  "categories": [
+  "items": [
     {
-      "name": "Pizza",
-      "items": [
-        {
-          "id": 1,
-          "restaurant_id": 1,
-          "name": "Margherita",
-          "description": "San Marzano tomato, fior di latte, basil.",
-          "price": 16.99,
-          "is_available": true,
-          "category": "Pizza",
-          "image_url": ""
-        }
-      ]
-    },
-    {
-      "name": "Starters",
-      "items": [
-        {
-          "id": 2,
-          "restaurant_id": 1,
-          "name": "Garlic Knots",
-          "description": "Six knots with marinara.",
-          "price": 7.5,
-          "is_available": true,
-          "category": "Starters",
-          "image_url": ""
-        }
-      ]
+      "id": 1,
+      "restaurant_id": 1,
+      "name": "Kung Pao Chicken",
+      "description": "Peanuts, chili, and diced chicken",
+      "price": 15.5,
+      "is_available": true,
+      "category": "Mains",
+      "image_url": "",
+      "is_active": true
     }
   ]
 }
 ```
 
-**Errors**
-- `404`: restaurant not found
-- `422`: `restaurant_id` isn't an integer
+### Authentication and customer models
 
-### 6. List menu items
-`GET /restaurants/{restaurant_id}/menu/items`
+- `LoginRequest`: `email: str`, `password: str` (non-empty).
+- `LoginResponse`: `token: str`, `user_id: int`, `role` (`customer`, `restaurant_owner`, or `admin`).
+- `MessageResponse`: `message: str`.
+- `CustomerCreate`: required `name: str` (non-blank), `email: str` (valid, unique), `password: str` (at least 8 characters). Optional `phone` and `delivery_address` default to empty strings. Unknown fields, including `role`, are rejected with 422; new accounts are always customers.
+- `CustomerUpdate`: optional `name`, `phone`, `delivery_address`. Omitted fields and fields explicitly set to `null` remain unchanged. `name` and `delivery_address` cannot be blank if set; `phone` may be empty. Other fields (`email`, `role`, `is_active`, `id`, etc.) are rejected with 422.
+- `CustomerResponse`: `id`, `email`, `name`, `phone`, `delivery_address`, `is_active`. Passwords and password hashes are **never** returned.
 
-**Path parameters:** `restaurant_id` (int)
-
-**Query parameters**
-- `available` (bool, optional): `?available=true` returns only available items
-
-**Response 200:** `list[MenuItem]`. The list is empty if the restaurant has no items.
-```json
-[
-  {
-    "id": 1,
-    "restaurant_id": 1,
-    "name": "Margherita",
-    "description": "San Marzano tomato, fior di latte, basil.",
-    "price": 16.99,
-    "is_available": true,
-    "category": "Pizza",
-    "image_url": ""
-  },
-  {
-    "id": 2,
-    "restaurant_id": 1,
-    "name": "Garlic Knots",
-    "description": "Six knots with marinara.",
-    "price": 7.5,
-    "is_available": true,
-    "category": "Starters",
-    "image_url": ""
-  }
-]
-```
-
-**Errors**
-- `404`: restaurant not found
-- `422`: invalid `restaurant_id` or `available` value
-
-### 7. Add a menu item
-`POST /restaurants/{restaurant_id}/menu/items`
-
-**Path parameters:** `restaurant_id` (int)
-
-**Auth:** `Authorization: Bearer <token>` of an `admin`, or of the `restaurant_owner` whose `restaurant_id` is this `restaurant_id`
-
-**Request body:** `MenuItemCreate`
 ```json
 {
-  "name": "Garlic Knots",
-  "description": "Six knots with marinara.",
-  "price": 7.5,
-  "is_available": true,
-  "category": "Starters",
-  "image_url": ""
+  "id": 4,
+  "email": "alice@foodapp.test",
+  "name": "Alice Smith",
+  "phone": "250-555-0101",
+  "delivery_address": "123 Main St, Kelowna, BC",
+  "is_active": true
 }
 ```
 
-**Response 201:** `MenuItem`, with its new `id` and `restaurant_id`
+### Cart models
 
-**Errors**
-- `401`: no valid bearer token
-- `403`: any other user, or a deactivated account. A non-admin gets `403`, not `404`, for a restaurant that does not exist.
-- `404`: restaurant not found
-- `422`: missing `name`, `price`, or `category`, or `price` <= 0
+- `CartItemAdd`: `menu_item_id: int` (required) and `quantity: int` (default 1, range 1–20). Both fields use strict integers; strings, booleans, and fractional numbers are not accepted as integers.
+- `CartItemUpdate`: `quantity: int`, required strict integer from 1 to 20.
+- `CartResponse`: `id`, `customer_id`, `restaurant_id` (nullable for an empty cart), `status` (`active` or `checked_out`), `items: list[CartLineResponse]`, `subtotal`, `delivery_fee`, and `total`.
+- `CartLineResponse`: `menu_item_id`, current `name`, current `unit_price`, `quantity`, calculated `line_total`, and `is_available`.
 
-### 8. Update a menu item
-`PATCH /restaurants/{restaurant_id}/menu/items/{item_id}`
-
-**Path parameters:** `restaurant_id` (int), `item_id` (int)
-
-**Auth:** `Authorization: Bearer <token>` of an `admin`, or of the `restaurant_owner` whose `restaurant_id` is this `restaurant_id`
-
-**Request body:** `MenuItemUpdate` (only the fields to change)
-```json
-{ "price": 8.25, "is_available": false, "category": "Sides" }
-```
-
-**Response 200:** the updated `MenuItem`
-
-**Errors**
-- `401`: no valid bearer token
-- `403`: any other user, or a deactivated account. A non-admin gets `403`, not `404`, for a restaurant that does not exist.
-- `404`: the restaurant doesn't exist, the item doesn't exist, or the item belongs to a different restaurant
-- `422`: a field has the wrong type, or `price` ≤ 0
-
-**Availability (#87).** `{"is_available": false}` makes an item temporarily unavailable: customers still see it, marked unavailable, and cannot add it to a cart. `{"is_available": true}` makes it available again. `is_active` cannot be changed here (a sent `is_active` is ignored); use endpoint 9 to deactivate.
-
-### 9. Deactivate a menu item
-`DELETE /restaurants/{restaurant_id}/menu/items/{item_id}`
-
-**Path parameters:** `restaurant_id` (int), `item_id` (int)
-
-**Auth:** `Authorization: Bearer <token>` of an `admin`, or of the `restaurant_owner` whose `restaurant_id` is this `restaurant_id`. No request body.
-
-**Response 204:** no body. This is a **soft delete**: the item gets `is_active = false` and is **never removed** from `menus.json`, because past orders and carts refer to its ID. It disappears from the customer menu (endpoint 5), and customers can no longer add it to a cart (409 `"<name> is not available to order right now"`). A cart that already holds it shows `is_available: false` for that line, and checkout refuses it. Deactivating an already deactivated item also returns 204.
-
-**Errors**
-- `401`: no valid bearer token
-- `403`: any other user, or a deactivated account. A non-admin gets `403`, not `404`, for a restaurant that does not exist.
-- `404`: the restaurant doesn't exist, the item doesn't exist, or the item belongs to a different restaurant
-
-## Authentication
-
-Added in M2 (#80). Signing in returns a token. Send it on requests that need a signed-in user:
-
-```
-Authorization: Bearer <token>
-```
-
-Tokens are random, are saved in `data/sessions.json` with the user's ID, and keep working after a server restart until the user signs out. That file is created at runtime and is not committed.
-
-| Method | Path | Purpose | Success | Errors |
-|---|---|---|---|---|
-| POST | `/auth/login` | Sign in and get a token | 200 | 401, 403, 422, 500 |
-| POST | `/auth/logout` | Sign out and delete the token | 200 | 401, 500 |
-
-### Sign in
-`POST /auth/login`
-
-**Request body:** `LoginRequest`
-```json
-{ "email": "alice@foodapp.test", "password": "Password123!" }
-```
-
-**Response 200:** `LoginResponse`
-```json
-{ "token": "x7Qp...", "user_id": 4, "role": "customer" }
-```
-`role` is `customer`, `restaurant_owner` or `admin`.
-
-**Errors**
-- `401`: `{"detail": "Invalid email or password"}`. The message is the same for an unknown email and a wrong password. The response includes `WWW-Authenticate: Bearer`.
-- `403`: `{"detail": "This account has been deactivated"}`. Only returned when the password is correct.
-- `422`: `email` or `password` is missing, or `password` is empty
-- `500`: `{"detail": "Could not complete sign in"}`. Stored user or session data could not be read or saved.
-
-### Sign out
-`POST /auth/logout`
-
-**Headers:** `Authorization: Bearer <token>`. There is no request body.
-
-**Response 200:** `MessageResponse`
-```json
-{ "message": "Signed out" }
-```
-
-**Errors**
-- `401`: `{"detail": "Not authenticated"}` if the header is missing or is not a bearer token, or `{"detail": "Invalid session token"}` if the token is unknown or already signed out. The response includes `WWW-Authenticate: Bearer`.
-- `500`: `{"detail": "Could not complete sign out"}`. Stored session data could not be read or saved.
-
-### Protected endpoints
-
-Added in M2 (#81). An endpoint that needs a signed-in user checks the token before anything else, including the request body:
-
-| Situation | Status | Body |
-|---|---|---|
-| No `Authorization` header, a scheme other than `Bearer`, or an empty token | 401 | `{"detail": "Not authenticated"}` |
-| The token is unknown or signed out, or its user no longer exists | 401 | `{"detail": "Invalid session token"}` |
-| The user's account is deactivated (also if it was deactivated after signing in) | 403 | `{"detail": "This account has been deactivated"}` |
-| The endpoint is limited to certain roles and the user has another one | 403 | `{"detail": "You do not have permission to do this"}` |
-| The endpoint changes one restaurant or its menu, and the user is not an admin or that restaurant's owner (#82) | 403 | `{"detail": "You do not have permission to change this restaurant"}` |
-| Stored user or session data cannot be read | 500 | `{"detail": "Could not verify the sign-in"}` |
-
-Every 401 includes `WWW-Authenticate: Bearer`. Protected endpoints show the `HTTPBearer` security scheme in OpenAPI.
-
-## Customer Accounts
-
-Added in M2 (#83-#86). Customers are stored in `data/users.json` as users with role `customer`. Responses use `CustomerResponse`, which never includes the password or its hash:
-
-```json
-{ "id": 4, "email": "alice@foodapp.test", "name": "Alice Smith", "phone": "250-555-0101", "delivery_address": "123 Main St, Kelowna, BC", "is_active": true }
-```
-
-| Method | Path | Who | Purpose | Success | Errors |
-|---|---|---|---|---|---|
-| POST | `/customers` | anyone | Register a customer | 201 | 409, 422, 500 |
-| GET | `/customers/me` | customer | View my profile | 200 | 401, 403, 500 |
-| PATCH | `/customers/me` | customer | Update my details and delivery address | 200 | 401, 403, 422, 500 |
-| POST | `/customers/me/deactivate` | customer | Deactivate my account | 200 | 401, 403, 500 |
-| GET | `/customers/{customer_id}` | admin | View any customer | 200 | 401, 403, 404, 422, 500 |
-| POST | `/customers/{customer_id}/deactivate` | admin | Deactivate any customer | 200 | 401, 403, 404, 409, 422, 500 |
-
-401 and 403 follow [Protected endpoints](#protected-endpoints). The 500 body is always `{"detail": "Could not access customer data"}`.
-
-### Register a customer
-`POST /customers`
-
-**Request body:** `CustomerCreate`. `name`, `email` and `password` are required; `phone` and `delivery_address` default to `""`.
-```json
-{ "name": "Dana Park", "email": "dana@example.com", "password": "longenough", "delivery_address": "1 Lake Rd" }
-```
-The role is always `customer`. Sending any other field, including `role`, returns 422. The email is stored lowercase, and the password is stored only as a hash. The customer can sign in straight away.
-
-**Errors**
-- `409`: `{"detail": "An account with this email already exists"}` (case is ignored)
-- `422`: empty `name`, invalid email, password shorter than 8 characters, or an unknown field
-
-### Update my details
-`PATCH /customers/me`
-
-**Request body:** `CustomerUpdate`, any of `name`, `phone`, `delivery_address`. A field left out or sent as `null` keeps its value. `phone` may be set to `""`; `name` and `delivery_address` may not be empty.
-
-**Decision (#85):** any other field (`email`, `role`, `id`, `is_active`, ...) is **rejected with 422**, not silently ignored, so a client finds out at once that it cannot change it.
-
-### Deactivate an account
-`POST /customers/me/deactivate` (customer) or `POST /customers/{customer_id}/deactivate` (admin). No request body. Returns the customer with `is_active: false`.
-
-The account is kept, not deleted, so its ID, carts and orders stay valid. Afterwards, signing in returns 403 and the customer's existing tokens get 403 on every protected endpoint.
-
-**Decision (#86):** deactivating an already-deactivated customer through the admin endpoint returns **409** `{"detail": "Customer 6 is already deactivated"}`. Through `/customers/me` it cannot happen: the deactivated customer's token already gets 403.
-
-## Shopping Cart
-
-Added in M2 (#88-#92). Every cart endpoint needs a signed-in, active **customer**: no token is 401; another role or a deactivated account is 403 (see [Protected endpoints](#protected-endpoints)). Each customer has at most one active cart, saved in `data/carts.json`.
-
-| Method | Path | Purpose | Success | Errors |
-|---|---|---|---|---|
-| GET | `/cart` | Get my active cart (created empty the first time) | 200 | 401, 403, 500 |
-| POST | `/cart/items` | Add an item (or increase its quantity) | 200 | 401, 403, 404, 409, 422, 500 |
-| PATCH | `/cart/items/{menu_item_id}` | Set the quantity of an item in the cart | 200 | 401, 403, 404, 422, 500 |
-| DELETE | `/cart/items/{menu_item_id}` | Remove an item | 200 | 401, 403, 404, 500 |
-| DELETE | `/cart/items` | Clear the cart | 200 | 401, 403, 500 |
-
-Every endpoint returns the whole cart as `CartResponse`. The 500 body is `{"detail": "Could not access cart data"}`.
-
-### CartResponse
 ```json
 {
-  "id": 1, "customer_id": 4, "restaurant_id": 1, "status": "active",
+  "id": 1,
+  "customer_id": 4,
+  "restaurant_id": 1,
+  "status": "active",
   "items": [
-    { "menu_item_id": 1, "name": "Kung Pao Chicken", "unit_price": 15.5, "quantity": 2, "line_total": 31.0, "is_available": true }
+    {"menu_item_id":1,"name":"Kung Pao Chicken","unit_price":15.5,"quantity":2,"line_total":31.0,"is_available":true}
   ],
-  "subtotal": 31.0, "delivery_fee": 4.99, "total": 35.99
+  "subtotal": 31.0,
+  "delivery_fee": 4.99,
+  "total": 35.99
 }
 ```
 
-**Prices (#92).** The stored cart holds only `menu_item_id` and `quantity`. Every response reads the **current** menu price, so a price change shows on the next request. `line_total = unit_price × quantity`, `subtotal` is the sum of the lines, and `total = subtotal + delivery_fee`. The delivery fee is a flat $4.99 (`settings.delivery_fee` in `app/core/config.py`) and $0 for an empty cart. All amounts are calculated with `Decimal` and rounded to cents in `app/services/pricing.py`, which checkout should reuse. Requests have no price fields; an extra `price` field is ignored. `is_available` is false if the item has since become unavailable or been deactivated.
+The stored cart contains **only** item IDs and quantities. Prices, availability, totals, and the flat $4.99 delivery fee are calculated by the backend. An empty cart has a delivery fee of $0.00. One cart can contain items from **one restaurant only**.
 
-### Add an item
-`POST /cart/items` with `CartItemAdd`: `{ "menu_item_id": 1, "quantity": 2 }`. `quantity` defaults to 1.
+### Order models
 
-| Rule | Status | Example `detail` |
-|---|---|---|
-| `quantity` must be a whole JSON number from 1 to 20 (`"2"`, `2.5` and `true` are refused) | 422 | field error list |
-| The line can't go above 20 in total | 422 | `"You can have at most 20 of one item in your cart (you already have 18)"` |
-| The menu item must exist | 404 | `"Menu item 99 not found"` |
-| The item must be available and not deactivated (`is_active`) | 409 | `"Beef Chow Mein is not available to order right now"` |
-| All items must come from one restaurant. An empty cart takes the restaurant of its first item | 409 | `"Your cart can only contain items from one restaurant. Clear it or remove those items first."` |
+`Order` / checkout response: `id: int`, `customer_id: int`, `restaurant_id: int`, `restaurant_name: str`, `delivery_address: str`, `items: list[OrderLine]`, `subtotal: float`, `delivery_fee: float`, `total: float`, `status: "placed"`, `created_at: datetime` (UTC).
 
-Adding an item that is already in the cart increases its quantity. A refused request leaves the stored cart unchanged.
-
-### Change, remove, clear
-- `PATCH /cart/items/{menu_item_id}` with `{ "quantity": 3 }` sets the quantity (1 to 20, else 422).
-- `DELETE /cart/items/{menu_item_id}` removes the line. Removing the last line resets `restaurant_id` to null.
-- `DELETE /cart/items` empties the cart and resets `restaurant_id`, keeping the same cart `id`.
-- An item that is not in the cart returns 404 `"Menu item 3 is not in your cart"`.
-
-### MenuItem.is_active
-Added to `MenuItem` for the cart rule above; it defaults to `true`, so existing data still loads. An owner or admin deactivates an item with `DELETE /restaurants/{restaurant_id}/menu/items/{item_id}` (#87), which also hides it from the customer menu.
-
-## Checkout (#94)
-
-All checkout endpoints are for signed-in, active customers only (401 without a valid token, 403 for other roles or a deactivated account).
-
-### Check out
-`POST /checkout` has **no request body**. The cart, the delivery address and every price come from the server. Returns **201** with an `Order` (the model from #93):
+Each `OrderLine` has `menu_item_id: int`, `name: str`, `unit_price: float`, `quantity: int`, and `line_total: float`. Prices and names are snapshots from **the time of checkout**, not live menu values.
 
 ```json
 {
-  "id": 1, "customer_id": 4, "restaurant_id": 1, "restaurant_name": "Golden Dragon",
+  "id": 1,
+  "customer_id": 4,
+  "restaurant_id": 1,
+  "restaurant_name": "Golden Dragon",
   "delivery_address": "123 Main St, Kelowna, BC",
   "items": [
-    { "menu_item_id": 1, "name": "Kung Pao Chicken", "unit_price": 15.5, "quantity": 2, "line_total": 31.0 }
+    {"menu_item_id":1,"name":"Kung Pao Chicken","unit_price":15.5,"quantity":2,"line_total":31.0}
   ],
-  "subtotal": 31.0, "delivery_fee": 4.99, "total": 35.99,
-  "status": "placed", "created_at": "2026-11-20T09:00:00Z"
+  "subtotal": 31.0,
+  "delivery_fee": 4.99,
+  "total": 35.99,
+  "status": "placed",
+  "created_at": "2026-11-20T09:00:00Z"
 }
 ```
 
-Everything is checked before anything is saved:
+## Endpoint details
 
-| Rule | Status | Example `detail` |
-|---|---|---|
-| The customer exists and is active | 403 | `"This account has been deactivated"` |
-| The customer has a delivery address | 422 | `"Add a delivery address to your profile before checking out"` |
-| The cart exists and has items | 409 | `"Your cart is empty"` |
-| The cart's restaurant still exists | 409 | `"The restaurant in your cart no longer exists. Clear your cart and start again."` |
-| Every item still exists, is active and is available (the message names the item) | 409 | `"Vegetable Spring Rolls is not available to order right now"` |
-| Every quantity is 1 to 20 | 422 | `"Quantity for menu item 1 must be 1 to 20"` |
+### Health and restaurants
 
-**Prices.** Recalculated from the **current** menu with the shared pricing function (`app/services/pricing.py`), so if a price changed after the item was added, the order uses the new price. The order stores a snapshot of each item's name and price; later menu edits never change it.
+#### `GET /health`
 
-**Order of writes.** The order is saved first, then the cart is marked `checked_out` (its lines are kept as a record). If saving the order fails (500 `{"detail": "Could not access order or cart data"}`), the cart is unchanged. The next `GET /cart` returns a new empty active cart with a new `id`.
+- **Access:** Public. **Request:** No body or parameters.
+- **Response 200:** `HealthResponse`, `{"status":"ok"}`.
+- **Errors:** No application error responses documented.
 
-## Order History (#96)
+#### `GET /restaurants`
 
-Added in M2. The two list endpoints return `list[Order]` (the model from #93, shown under [Check out](#check-out)), **newest first** (highest `id` first). They only read: no file is changed.
+- **Access:** Public. **Request:** No body.
+- **Query parameters:** `name` (optional partial, case-insensitive restaurant-name match); `cuisine` (optional exact, case-insensitive cuisine match). Leading/trailing whitespace is stripped; blank filters are ignored; both filters combine with AND.
+- **Response 200:** `list[Restaurant]` sorted by ID; `[]` when no restaurants match.
+- **Errors:** 500 on data access failure.
+- **Example:** `/restaurants?name=dragon&cuisine=chinese`.
 
-| Method | Path | Who | Purpose | Success | Errors |
-|---|---|---|---|---|---|
-| GET | `/customers/me/orders` | customer | List my orders | 200 | 401, 403, 500 |
-| GET | `/customers/{customer_id}/orders` | admin | List any customer's orders | 200 | 401, 403, 404, 422, 500 |
-| GET | `/orders/{order_id}` | customer, admin | View one order (#95) | 200 | 401, 403, 404, 422, 500 |
+#### `GET /restaurants/{restaurant_id}`
 
-401 and 403 follow [Protected endpoints](#protected-endpoints). The 500 body is always `{"detail": "Could not access order data"}`.
+- **Access:** Public. **Request:** Path `restaurant_id: int`; no body.
+- **Response 200:** `Restaurant`.
+- **Errors:** 404 if unknown restaurant; 422 for non-integer path ID; 500 for storage errors.
 
-### List my orders
-`GET /customers/me/orders` needs a signed-in, active **customer** token. The customer ID comes from the token, never from the request, so a customer can only ever see their own orders. Another role or a deactivated account gets 403.
+#### `POST /restaurants`
+
+- **Access:** Owner/admin. **Request:** `RestaurantCreate` JSON, for example `{"name":"Pasta Place","cuisine":"Italian"}`.
+- **Response 201:** Created `Restaurant` with server-generated `id`.
+- **Errors:** 401 unauthenticated, 403 wrong role/deactivated, 422 invalid or missing fields, 500 storage error.
+
+#### `PATCH /restaurants/{restaurant_id}`
+
+- **Access:** Admin or owner of that restaurant. **Request:** Integer path ID and `RestaurantUpdate`, for example `{"name":"New Name"}`.
+- **Response 200:** Updated `Restaurant`.
+- **Errors:** 401 no token, 403 wrong owner/role/deactivated, 404 unknown restaurant, 422 invalid request, 500 storage error. Unauthorized owners get 403 even for nonexistent IDs.
+
+### Menu management
+
+#### `GET /restaurants/{restaurant_id}/menu`
+
+- **Access:** Public. **Request:** Integer `restaurant_id`, no body.
+- **Response 200:** `MenuResponse` with flat `items` array sorted by ID. The array is empty when the restaurant has no visible items. Unavailable items (`is_available: false`) are visible, but deactivated items (`is_active: false`) are hidden.
+- **Errors:** 404 unknown restaurant, 422 non-integer path ID, 500 storage error.
+
+#### `POST /restaurants/{restaurant_id}/menu`
+
+- **Access:** Admin or owner of that restaurant. **Request:** Integer `restaurant_id`, `MenuItemCreate` JSON.
 
 ```json
-[
-  { "id": 3, "customer_id": 4, "restaurant_id": 1, "restaurant_name": "Golden Dragon",
-    "delivery_address": "123 Main St, Kelowna, BC",
-    "items": [ { "menu_item_id": 1, "name": "Kung Pao Chicken", "unit_price": 15.5, "quantity": 3, "line_total": 46.5 } ],
-    "subtotal": 46.5, "delivery_fee": 4.99, "total": 51.49,
-    "status": "placed", "created_at": "2026-11-20T10:15:00Z" },
-  { "id": 1, "customer_id": 4, "...": "..." }
-]
+{"name":"Garlic Knots","description":"Six knots with marinara","price":7.5,"is_available":true,"category":"Starters","image_url":""}
 ```
 
-**Decision (#96):** a customer with no orders gets **200 with an empty list `[]`**, not 404, because "no orders yet" is a normal state, not a missing resource. The same holds if `data/orders.json` does not exist yet.
+- **Response 201:** Created `MenuItem`, including server-assigned `id` and `restaurant_id`.
+- **Errors:** 401 missing/invalid session, 403 wrong owner/role/deactivated, 404 unknown restaurant, 422 missing or invalid fields, 500 storage error.
 
-### List a customer's orders (admin)
-`GET /customers/{customer_id}/orders` needs an `admin` token (403 for any other role, including the customer whose orders they are; that check comes before the 404, so a non-admin cannot find out which IDs exist).
+#### `PATCH /restaurants/{restaurant_id}/menu/items/{item_id}`
 
-- `200`: the customer's orders, newest first, or `[]` if they have none. A deactivated customer's orders can still be read.
-- `404`: `{"detail": "Customer 99 not found"}` when no customer has the ID. Restaurant-owner and admin IDs count as not found, the same as `GET /customers/{customer_id}`.
-- `422`: `customer_id` is not an integer.
+- **Access:** Admin or owner of that restaurant. **Request:** Integer `restaurant_id` and `item_id`; `MenuItemUpdate` JSON, for example `{"price":8.25,"is_available":false,"category":"Sides"}`.
+- **Response 200:** Updated `MenuItem`.
+- **Errors:** 401 missing token, 403 wrong owner/role/deactivated, 404 restaurant/item missing or item belongs elsewhere, 422 invalid value or **explicit null** (for example `{"price":null}`), 500 storage error.
+- **Rules:** Setting `is_available: false` temporarily makes an item unorderable without hiding it from the public menu. Setting it back to `true` restores orderability if the item remains active. `is_active` is not a PATCH field; use DELETE to deactivate.
 
-`/customers/me/orders` is declared before `/customers/{customer_id}/orders` so that `me` is never read as an ID.
+#### `DELETE /restaurants/{restaurant_id}/menu/items/{item_id}`
 
-### View one order (#95)
-`GET /orders/{order_id}` needs a signed-in, active **customer** or **admin** token and returns one `Order` (same shape as in the list above, with the item names, prices and totals from checkout). It only reads: no file is changed. A customer can open only their own orders; an admin can open any order, including a deactivated customer's.
+- **Access:** Admin or owner of that restaurant. **Request:** Integer `restaurant_id` and `item_id`; no body.
+- **Response 204:** No response body. Soft-deactivates the item, retaining it in `menus.json` so historical references remain valid. Repeated deactivation also returns 204.
+- **Errors:** 401 missing token, 403 wrong owner/role/deactivated, 404 restaurant/item missing or item belongs elsewhere, 422 invalid ID, 500 storage error.
+- **Rules:** A deactivated item disappears from the public menu, cannot be added to carts, and causes checkout to refuse an existing cart containing it.
 
-- `200`: the order.
-- `401`: no valid token, as in [Protected endpoints](#protected-endpoints).
-- `403`: a restaurant owner, a deactivated account, or a customer asking for **another customer's order** (`{"detail": "You do not have permission to view this order"}`).
-- `404`: `{"detail": "Order 99 not found"}` when no order has the ID.
-- `422`: `order_id` is not an integer.
-- `500`: `{"detail": "Could not access order data"}`.
+### Authentication
 
-**Decision (#95):** another customer's order returns **403**, as the issue requires. Menu edits made after checkout never change a stored order, because the order keeps its own snapshot of names and prices.
+#### `POST /auth/login`
 
-## Existing Endpoints (unchanged from M0)
+- **Access:** Public. **Request:** `LoginRequest` JSON, for example `{"email":"alice@foodapp.test","password":"Password123!"}`.
+- **Response 200:** `LoginResponse` with `token`, `user_id`, `role`.
 
-| Method | Path | Response |
-|---|---|---|
-| GET | `/health` | 200 `{"status": "ok"}` |
-| GET | `/docs` | OpenAPI documentation |
+```json
+{"token":"<generated-session-token>","user_id":4,"role":"customer"}
+```
+
+- **Errors:** 401 incorrect email/password (identical message, `unauthorized`), 403 valid credentials for a deactivated account (`forbidden`), 422 malformed or missing request fields, 500 storage error.
+- **Rules:** Emails are matched case-insensitively. A successful login creates a session in `data/sessions.json`.
+
+#### `POST /auth/logout`
+
+- **Access:** Authenticated bearer token. **Request:** No body; header `Authorization: Bearer <token>`.
+- **Response 200:** `MessageResponse`, `{"message":"Signed out"}`.
+- **Errors:** 401 absent/unknown/already-revoked token, 500 storage error.
+- **Rules:** Removes that session; subsequent uses of the token return 401. The route only checks bearer credentials and session deletion rather than requiring a particular role.
+
+### Customers
+
+#### `POST /customers`
+
+- **Access:** Public. **Request:** `CustomerCreate`, e.g. `{"name":"Dana Park","email":"dana@example.com","password":"longenough","delivery_address":"1 Lake Rd"}`.
+- **Response 201:** `CustomerResponse`, with no password or hash.
+- **Errors:** 409 duplicate email (`code: conflict`), 422 invalid email, short password, blank name, or unknown fields; 500 storage error.
+- **Rules:** Email is stored lowercase; new account role is always `customer`.
+
+#### `GET /customers/me`
+
+- **Access:** Customer. **Request:** No body; customer inferred from token.
+- **Response 200:** `CustomerResponse`.
+- **Errors:** 401 missing token, 403 wrong role/deactivated, 500 storage error.
+
+#### `PATCH /customers/me`
+
+- **Access:** Customer. **Request:** `CustomerUpdate`, e.g. `{"name":"Alice S.","delivery_address":"45 Lake Rd"}`.
+- **Response 200:** Updated `CustomerResponse`.
+- **Errors:** 401 missing token, 403 wrong role/deactivated, 422 invalid fields or unknown fields, 500 storage error.
+- **Rules:** Only `name`, `phone`, and `delivery_address` can be changed. Omitted or null-valued fields are ignored. Cannot update email, role, account status, or ID here.
+
+#### `POST /customers/me/deactivate`
+
+- **Access:** Customer. **Request:** No body.
+- **Response 200:** `CustomerResponse` with `is_active: false`.
+- **Errors:** 401 missing token, 403 wrong role/already-deactivated session, 500 storage error.
+- **Rules:** Record is retained. Existing sessions stop working on protected endpoints because authentication rechecks account state.
+
+#### `GET /customers/{customer_id}`
+
+- **Access:** Admin. **Request:** Integer `customer_id`, no body.
+- **Response 200:** `CustomerResponse`.
+- **Errors:** 401 missing token, 403 non-admin/deactivated, 404 unknown ID or ID belonging to a non-customer, 422 invalid path ID, 500 storage error.
+
+#### `POST /customers/{customer_id}/deactivate`
+
+- **Access:** Admin. **Request:** Integer `customer_id`; no body.
+- **Response 200:** `CustomerResponse` with `is_active: false`.
+- **Errors:** 401 missing token, 403 non-admin/deactivated, 404 unknown customer, 409 already deactivated (`code: conflict`), 422 invalid ID, 500 storage error.
+
+### Shopping cart
+
+All cart endpoints require an active customer. A customer has at most one active cart; `GET /cart` creates an empty one on first use. The cart does not store prices. Totals are recomputed using current menu prices and the shared pricing function in `app/services/pricing.py`.
+
+#### `GET /cart`
+
+- **Access:** Customer. **Request:** No body.
+- **Response 200:** `CartResponse`. Creates an empty active cart if one does not exist; returns the existing active cart otherwise.
+- **Errors:** 401 missing token, 403 wrong role/deactivated, 500 storage error.
+
+#### `POST /cart/items`
+
+- **Access:** Customer. **Request:** `CartItemAdd` JSON, for example `{"menu_item_id":1,"quantity":2}`. Quantity defaults to one.
+- **Response 200:** Updated `CartResponse`. Re-adding an item increases the quantity.
+- **Errors:** 401 missing token, 403 wrong role/deactivated, 404 unknown item, 409 item unavailable/deactivated or from another restaurant, 422 invalid quantity or quantity exceeding 20 after addition, 500 storage error.
+- **Rules:** First item chooses the cart's restaurant. Adding from a different restaurant is rejected without changing the stored cart. Quantity must stay between 1 and 20 per item.
+
+#### `PATCH /cart/items/{menu_item_id}`
+
+- **Access:** Customer. **Request:** Integer `menu_item_id`; `CartItemUpdate` JSON, for example `{"quantity":3}`.
+- **Response 200:** Updated `CartResponse`.
+- **Errors:** 401 missing token, 403 wrong role/deactivated, 404 item not currently in cart, 422 invalid quantity or path ID, 500 storage error.
+
+#### `DELETE /cart/items/{menu_item_id}`
+
+- **Access:** Customer. **Request:** Integer `menu_item_id`; no body.
+- **Response 200:** Updated `CartResponse`, with the line removed.
+- **Errors:** 401 missing token, 403 wrong role/deactivated, 404 item not in cart, 422 invalid ID, 500 storage error.
+- **Rules:** Removing the last item resets `restaurant_id` to null.
+
+#### `DELETE /cart/items`
+
+- **Access:** Customer. **Request:** No body.
+- **Response 200:** Updated empty `CartResponse`; retains the active cart ID but resets its restaurant.
+- **Errors:** 401 missing token, 403 wrong role/deactivated, 500 storage error.
+
+### Checkout
+
+#### `POST /checkout`
+
+- **Access:** Customer. **Request:** **No body**. Cart contents, delivery address, prices, and fee are taken from the server.
+- **Response 201:** `Order`, with server-assigned ID, UTC creation time, `status: "placed"`, item snapshots, and totals.
+- **Errors:** 401 missing token, 403 wrong role/deactivated, 409 empty cart, missing/disabled/removed menu item, or missing restaurant; 422 no delivery address or invalid stored quantity; 500 storage error.
+- **Rules:** Checkout rechecks current customer status, restaurant, each item, and quantity before saving. It prices items from the **current** menu, even if the owner changed a price after the item was added to the cart. A disabled or deactivated item returns 409 and the order is not written. The order is saved before the cart is marked `checked_out`; if saving fails, the active cart remains unchanged. After successful checkout, the next `GET /cart` creates a new empty active cart.
+
+**Example conflict:**
+
+```json
+{"detail":"Vegetable Spring Rolls is not available to order right now","code":"conflict"}
+```
+
+**Example business-rule failure:**
+
+```json
+{"detail":"Add a delivery address to your profile before checking out","code":"business_rule"}
+```
+
+### Orders and order history
+
+Read operations do not mutate stored orders. Order lists are returned newest first. Placed orders preserve the restaurant name, menu-item names, prices, quantities, delivery address, and totals from checkout even if the menu is edited later.
+
+#### `GET /customers/me/orders`
+
+- **Access:** Customer. **Request:** No body; customer from token.
+- **Response 200:** `list[Order]` belonging to the signed-in customer, newest first. Returns `[]` if there are no orders.
+- **Errors:** 401 missing token, 403 wrong role/deactivated, 500 storage error.
+
+#### `GET /customers/{customer_id}/orders`
+
+- **Access:** Admin. **Request:** Integer `customer_id`; no body.
+- **Response 200:** `list[Order]` for that customer, newest first, or `[]` if none; deactivated customers' historical orders remain readable by an admin.
+- **Errors:** 401 missing token, 403 non-admin/deactivated, 404 customer not found or ID belongs to a non-customer, 422 invalid ID, 500 storage error.
+
+#### `GET /orders/{order_id}`
+
+- **Access:** Customer/admin. **Request:** Integer `order_id`; no body.
+- **Response 200:** A single `Order` snapshot.
+- **Errors:** 401 missing token, 403 restaurant owner/deactivated account/customer asking for another customer's order, 404 order not found, 422 invalid ID, 500 storage error.
+- **Rules:** Customers can retrieve only their own orders. Admins can retrieve any order, including those of deactivated customers. An existing order never reprices when a menu item is edited.
+
+## Where rules are implemented
+
+| Concern | Implementation |
+|---|---|
+| Authentication and token lookup | `app/services/auth_service.py`; `get_bearer_token` and `get_current_user` in `app/api/dependencies.py` |
+| Role and restaurant-owner authorization | `require_role` and `require_restaurant_access` in `app/api/dependencies.py` |
+| Customer eligibility | `CustomerService.require_active_customer` in `app/services/customer_service.py` |
+| Menu-item orderability | `MenuService.is_orderable` and `get_orderable_item` in `app/services/menu_service.py` |
+| Cart validation | `app/services/cart_service.py` |
+| Checkout revalidation and order placement | `app/services/checkout_service.py` |
+| Money calculation | `app/services/pricing.py`, using `Decimal` |
+| Order listing/ownership | `app/services/order_service.py` |
+| Domain exception-to-HTTP mapping | `app/core/errors.py` and `app/main.py` |
+| JSON persistence | `app/repositories/` |
+
+## OpenAPI and testing
+
+- **Interactive OpenAPI:** `/docs`; raw schema at `/openapi.json`.
+- `tests/test_openapi.py` verifies the documented endpoint set, descriptions, parameter documentation, success schemas, security declarations, and important error response schemas. Issue #110 extends this coverage across M2 routes.
+- Integration tests validate owner changes to prices and availability at checkout (#103), shared business rules (#109), and the standardized domain error mapping (#107).
+- Run all tests with `python -m pytest -q`. Tests that write data use temporary locations; they should not modify committed sample files.
+
+The HTML pages (`/`, `/owner`, `/account`, `/orders`) are front-end routes rather than JSON API operations and are intentionally absent from the OpenAPI endpoint list.

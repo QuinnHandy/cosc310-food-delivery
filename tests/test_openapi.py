@@ -60,7 +60,7 @@ def test_all_endpoints_are_documented():
 
 
 # The web pages are not API endpoints, so they are hidden from /docs.
-@pytest.mark.parametrize("path", ["/", "/owner"])
+@pytest.mark.parametrize("path", ["/", "/owner", "/account", "/orders"])
 def test_frontend_pages_are_hidden_from_docs(path):
     assert path not in SCHEMA["paths"]
 
@@ -174,3 +174,59 @@ def test_public_routes_need_no_token(method, path):
     operation = SCHEMA["paths"][path][method]
     assert "security" not in operation
     assert not {"401", "403"} & set(operation["responses"])
+
+
+# M2 endpoints must document their expected HTTP error responses.
+@pytest.mark.parametrize(
+    "method,path,expected",
+    [
+        ("post", "/customers", {"409", "422", "500"}),
+        ("get", "/customers/me", {"401", "403", "500"}),
+        ("patch", "/customers/me", {"401", "403", "422", "500"}),
+        ("get", "/customers/{customer_id}", {"401", "403", "404", "422", "500"}),
+        ("get", "/cart", {"401", "403", "500"}),
+        ("post", "/cart/items", {"401", "403", "404", "409", "422", "500"}),
+        ("patch", "/cart/items/{menu_item_id}", {"401", "403", "404", "422", "500"}),
+        ("post", "/checkout", {"401", "403", "409", "422", "500"}),
+        ("get", "/customers/me/orders", {"401", "403", "500"}),
+        ("get", "/customers/{customer_id}/orders", {"401", "403", "404", "422", "500"}),
+        ("get", "/orders/{order_id}", {"401", "403", "404", "422", "500"}),
+    ],
+)
+def test_m2_endpoints_document_expected_errors(method, path, expected):
+    responses = SCHEMA["paths"][path][method]["responses"]
+    assert expected <= set(responses)
+
+
+# Domain errors must use the standardized error response model.
+@pytest.mark.parametrize("method,path,operation", OPERATIONS)
+def test_domain_errors_use_standard_response_model(method, path, operation):
+    for status, response in operation["responses"].items():
+        if status not in {"401", "403", "404", "409", "500"}:
+            continue
+
+        assert response["content"]["application/json"]["schema"] == {
+            "$ref": "#/components/schemas/ErrorResponse"
+        }
+
+
+# New M2 models must document their fields in Swagger.
+@pytest.mark.parametrize(
+    "name",
+    [
+        "CustomerCreate",
+        "CustomerUpdate",
+        "CustomerResponse",
+        "CartItemAdd",
+        "CartItemUpdate",
+        "CartResponse",
+        "CartLineResponse",
+        "Order",
+        "OrderLine",
+        "MenuItemUpdate",
+    ],
+)
+def test_m2_schema_fields_have_descriptions(name):
+    properties = SCHEMA["components"]["schemas"][name]["properties"]
+    for field, spec in properties.items():
+        assert spec.get("description", "").strip(), f"{name}.{field}"
