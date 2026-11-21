@@ -20,6 +20,10 @@ class CustomerAlreadyDeactivatedError(Exception):
     """Raised when deactivating an account that is already deactivated."""
 
 
+class CustomerNotAllowedError(Exception):
+    """Raised when the user is not an active customer (deactivated, deleted, or another role)."""
+
+
 class CustomerService:
     """Customer account rules: register, view, update and deactivate. Does no file access of its own.
 
@@ -57,6 +61,25 @@ class CustomerService:
         if user.role != UserRole.customer:
             raise CustomerNotFoundError(f"Customer {customer_id} not found")
         return user
+
+    def require_active_customer(self, user: User) -> User:
+        """The one place that decides whether a user may use a cart or check out (#109).
+
+        Re-reads the account from storage instead of trusting `user`, so a customer who was
+        deactivated after signing in is refused even if the caller holds an old User object.
+        Returns the current stored customer.
+
+        Raises CustomerNotAllowedError for another role, an unknown account or a deactivated one.
+        """
+        if user.role != UserRole.customer:
+            raise CustomerNotAllowedError("Only customers can use a cart or check out")
+        try:
+            customer = self.get_customer(user.id)
+        except CustomerNotFoundError as exc:
+            raise CustomerNotAllowedError("Customer account not found") from exc
+        if not customer.is_active:
+            raise CustomerNotAllowedError("This account has been deactivated")
+        return customer
 
     def update_customer(self, customer_id: int, changes: CustomerUpdate) -> User:
         """Changes only the fields sent; a field sent as null is treated as left out.
