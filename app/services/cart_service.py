@@ -1,7 +1,7 @@
 from decimal import Decimal
 
 from app.repositories.cart_repository import CartRepository
-from app.repositories.menu_repository import MenuItemNotFoundError, MenuRepository
+from app.repositories.menu_repository import MenuItemNotFoundError
 from app.schemas.cart import (
     MAX_QUANTITY,
     Cart,
@@ -11,16 +11,10 @@ from app.schemas.cart import (
     CartStatus,
 )
 from app.schemas.menu import MenuItem
-from app.schemas.user import User, UserRole
+from app.schemas.user import User
+from app.services.customer_service import CustomerNotAllowedError, CustomerService
+from app.services.menu_service import MenuItemUnavailableError, MenuService
 from app.services.pricing import price_lines
-
-
-class CustomerNotAllowedError(Exception):
-    """Raised when the user is not an active customer (deactivated, or another role)."""
-
-
-class MenuItemUnavailableError(Exception):
-    """Raised when adding an item that is unavailable or deactivated."""
 
 
 class DifferentRestaurantError(Exception):
@@ -40,16 +34,22 @@ class CartService:
 
     Every change is validated first and saved once at the end, so a refused request never
     changes the stored cart. Totals always use the current menu prices (see pricing.py).
+
+    The rules it shares with checkout are not written here (#109): "is this an active
+    customer?" is CustomerService.require_active_customer and "can this item be ordered?" is
+    MenuService.get_orderable_item, so the cart and checkout can never disagree.
     """
 
     def __init__(
         self,
         cart_repository: CartRepository,
-        menu_repository: MenuRepository,
+        menu_service: MenuService,
+        customer_service: CustomerService,
         delivery_fee: Decimal,
     ) -> None:
         self._carts = cart_repository
-        self._menus = menu_repository
+        self._menus = menu_service
+        self._customers = customer_service
         self._delivery_fee = delivery_fee
 
     # ---- reading ----
@@ -65,7 +65,7 @@ class CartService:
     def find_active_cart(self, customer: User) -> Cart | None:
         """The stored active cart, or None. Unlike get_active_cart this never creates (writes) one,
         so checkout can refuse an empty cart without touching the cart file."""
-        self._require_active_customer(customer)
+        customer = self._customers.require_active_customer(customer)
         return self._carts.get_active_for_customer(customer.id)
 
     # ---- changes ----
@@ -77,9 +77,7 @@ class CartService:
         QuantityLimitError; the cart is unchanged when any of them is raised.
         """
         cart = self._active_cart(customer)
-        item = self._menus.get_item(menu_item_id)
-        if not item.is_available or not item.is_active:
-            raise MenuItemUnavailableError(f"{item.name} is not available to order right now")
+        item = self._menus.get_orderable_item(menu_item_id)
         if cart.restaurant_id is not None and cart.restaurant_id != item.restaurant_id:
             raise DifferentRestaurantError(
                 "Your cart can only contain items from one restaurant. "
@@ -153,7 +151,7 @@ class CartService:
                 unit_price=float(priced.unit_price),
                 quantity=line.quantity,
                 line_total=float(priced.line_total),
-                is_available=item.is_available and item.is_active,
+                is_available=MenuService.is_orderable(item),
             )
             for item, line, priced in zip(items, cart.items, breakdown.lines)
         ]
@@ -170,17 +168,10 @@ class CartService:
 
     # ---- helpers ----
 
-    @staticmethod
-    def _require_active_customer(customer: User) -> None:
+    def _active_cart(self, customer: User) -> Cart:
         # Checked here as well as by the route's auth dependency, so the rule holds for any
         # caller of the service, not only HTTP requests.
-        if customer.role != UserRole.customer:
-            raise CustomerNotAllowedError("Only customers have a cart")
-        if not customer.is_active:
-            raise CustomerNotAllowedError("This account has been deactivated")
-
-    def _active_cart(self, customer: User) -> Cart:
-        self._require_active_customer(customer)
+        customer = self._customers.require_active_customer(customer)
         return self._carts.get_active_for_customer(customer.id) or self._carts.add(customer.id)
 
     @staticmethod

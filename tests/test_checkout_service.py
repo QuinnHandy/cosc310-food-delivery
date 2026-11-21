@@ -29,6 +29,7 @@ from app.services.checkout_service import (
     EmptyCartError,
 )
 from app.services.customer_service import CustomerService
+from app.services.menu_service import MenuService
 
 FEE = Decimal("4.99")
 
@@ -49,11 +50,13 @@ def env(tmp_path):
     users = UserRepository(tmp_path / "users.json", restaurants)
     carts = CartRepository(tmp_path / "carts.json")
     orders = OrderRepository(tmp_path / "orders.json")
-    cart_service = CartService(carts, menus, FEE)
+    customer_service = CustomerService(users)
+    menu_service = MenuService(menus)
+    cart_service = CartService(carts, menu_service, customer_service, FEE)
 
     def make_service(order_repository=orders):
         return CheckoutService(
-            CustomerService(users), cart_service, menus, restaurants, order_repository, FEE
+            customer_service, cart_service, menu_service, restaurants, order_repository, FEE
         )
 
     return {
