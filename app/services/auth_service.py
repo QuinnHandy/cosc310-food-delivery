@@ -1,6 +1,7 @@
 import secrets
 from datetime import datetime, timezone
 
+from app.core.errors import ForbiddenError, UnauthorizedError
 from app.core.security import hash_password, verify_password
 from app.repositories.session_repository import SessionRepository
 from app.repositories.user_repository import UserNotFoundError, UserRepository
@@ -11,12 +12,12 @@ from app.schemas.user import User
 _DUMMY_HASH = hash_password(secrets.token_urlsafe(32))
 
 
-class InvalidCredentialsError(Exception):
-    """Raised when an email, password or session token is not valid."""
+class InvalidCredentialsError(UnauthorizedError):
+    """Raised when an email, password or session token is invalid."""
 
 
-class AccountDeactivatedError(Exception):
-    """Raised when the right password is given for a deactivated account."""
+class AccountDeactivatedError(ForbiddenError):
+    """Raised when an account has been deactivated."""
 
 
 class AuthService:

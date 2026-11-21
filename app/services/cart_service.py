@@ -1,5 +1,11 @@
 from decimal import Decimal
 
+from app.core.errors import (
+    BusinessRuleError,
+    ConflictError,
+    ForbiddenError,
+    NotFoundError,
+)
 from app.repositories.cart_repository import CartRepository
 from app.repositories.menu_repository import MenuItemNotFoundError, MenuRepository
 from app.schemas.cart import (
@@ -15,24 +21,25 @@ from app.schemas.user import User, UserRole
 from app.services.pricing import price_lines
 
 
-class CustomerNotAllowedError(Exception):
-    """Raised when the user is not an active customer (deactivated, or another role)."""
+
+class CustomerNotAllowedError(ForbiddenError):
+    """Raised when the user is not an active customer."""
 
 
-class MenuItemUnavailableError(Exception):
-    """Raised when adding an item that is unavailable or deactivated."""
+class MenuItemUnavailableError(ConflictError):
+    """Raised when an item is unavailable or deactivated."""
 
 
-class DifferentRestaurantError(Exception):
-    """Raised when adding an item from a restaurant other than the one already in the cart."""
+class DifferentRestaurantError(ConflictError):
+    """Raised when adding items from different restaurants."""
 
 
-class QuantityLimitError(Exception):
-    """Raised when a line would go above the maximum quantity."""
+class QuantityLimitError(BusinessRuleError):
+    """Raised when an item exceeds the maximum quantity."""
 
 
-class CartItemNotInCartError(Exception):
-    """Raised when changing or removing a menu item that is not in the cart."""
+class CartItemNotInCartError(NotFoundError):
+    """Raised when an item is not in the cart."""
 
 
 class CartService:

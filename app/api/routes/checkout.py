@@ -1,23 +1,13 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 
 from app.api.dependencies import get_checkout_service, require_role
 from app.api.openapi import NOT_ALLOWED, NOT_SIGNED_IN, data_error
-from app.repositories.restaurant_repository import DataAccessError
 from app.schemas.common import ErrorResponse
 from app.schemas.order import Order
 from app.schemas.user import User
-from app.services.cart_service import CustomerNotAllowedError
-from app.services.checkout_service import (
-    CartChangedError,
-    CheckoutError,
-    CheckoutNotAllowedError,
-    CheckoutService,
-    DeliveryAddressRequiredError,
-    EmptyCartError,
-    InvalidQuantityError,
-)
+from app.services.checkout_service import CheckoutService
 
 router = APIRouter(tags=["checkout"])
 
@@ -31,36 +21,35 @@ CHECKOUT_CONFLICT = {
             "The cart is empty, or its restaurant or one of its items no longer exists, is "
             "deactivated or is unavailable (the message names the item). Nothing is saved."
         ),
-        "content": {"application/json": {"example": {"detail": "Kung Pao Chicken is not available to order right now"}}},
+        "content": {"application/json":
+                    {"example": {
+                        "detail": "Kung Pao Chicken is not available to order right now",
+                        "code": "conflict",
+                    }
+                }
+            }
+        },
     }
-}
+
+
 CHECKOUT_INVALID = {
     422: {
         "model": ErrorResponse,
-        "description": "The customer has no delivery address, or a cart line has an invalid quantity.",
+        "description": (
+            "The customer has no delivery address, "
+            "or a cart line has an invalid quantity."
+        ),
         "content": {
             "application/json": {
-                "example": {"detail": "Add a delivery address to your profile before checking out"}
+                "example": {
+                    "detail": "Add a delivery address to your profile before checking out",
+                    "code": "business_rule",
+                }
             }
         },
     }
 }
 
-
-def _call(action):
-    """Runs a CheckoutService call and turns its errors into HTTP responses."""
-    try:
-        return action()
-    except (CheckoutNotAllowedError, CustomerNotAllowedError) as exc:
-        raise HTTPException(status_code=403, detail=str(exc)) from exc
-    except (DeliveryAddressRequiredError, InvalidQuantityError) as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-    except (EmptyCartError, CartChangedError) as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
-    except CheckoutError as exc:  # any future checkout rule we have not mapped yet
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
-    except DataAccessError as exc:
-        raise HTTPException(status_code=500, detail="Could not access order or cart data") from exc
 
 
 @router.post(
@@ -90,4 +79,4 @@ def checkout(customer: CustomerOnly, service: CheckoutService = Depends(get_chec
     afterwards, so a failed save leaves the cart unchanged. After checkout, `GET /cart` returns a
     new empty cart.
     """
-    return _call(lambda: service.checkout(customer))
+    return service.checkout(customer)

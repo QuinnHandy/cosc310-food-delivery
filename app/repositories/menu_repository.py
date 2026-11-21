@@ -1,11 +1,15 @@
 from pathlib import Path
 
+from app.core.errors import NotFoundError
 from app.repositories.json_store import DataAccessError, JsonStore, next_id
-from app.repositories.restaurant_repository import RestaurantNotFoundError, RestaurantRepository
+from app.repositories.restaurant_repository import (
+    RestaurantNotFoundError,
+    RestaurantRepository,
+)
 from app.schemas.menu import Menu, MenuItem, MenuItemCreate, MenuItemUpdate
 
 
-class MenuItemNotFoundError(Exception):
+class MenuItemNotFoundError(NotFoundError):
     """Raised when a menu item does not exist for the given restaurant."""
 
 

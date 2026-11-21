@@ -2,9 +2,10 @@ from pydantic import BaseModel, Field
 
 
 class ErrorResponse(BaseModel):
-    """Error body returned for 401, 403, 404 and 500 responses."""
+    """Standard response body for domain errors."""
 
     detail: str = Field(description="Human-readable explanation of the error.")
+    code: str = Field(description="Machine-readable error code.")
 
 
 class HealthResponse(BaseModel):

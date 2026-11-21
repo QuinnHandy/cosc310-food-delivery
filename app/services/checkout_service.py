@@ -14,9 +14,17 @@ The order of work matters:
 
 from decimal import Decimal
 
+from app.core.errors import (
+    BusinessRuleError,
+    ConflictError,
+    ForbiddenError,
+)
 from app.repositories.menu_repository import MenuItemNotFoundError, MenuRepository
 from app.repositories.order_repository import OrderRepository
-from app.repositories.restaurant_repository import RestaurantNotFoundError, RestaurantRepository
+from app.repositories.restaurant_repository import (
+    RestaurantNotFoundError,
+    RestaurantRepository,
+)
 from app.schemas.cart import MAX_QUANTITY, Cart
 from app.schemas.menu import MenuItem
 from app.schemas.order import Order, OrderDraft, OrderLine
@@ -26,29 +34,28 @@ from app.services.customer_service import CustomerNotFoundError, CustomerService
 from app.services.pricing import price_lines
 
 
-class CheckoutError(Exception):
-    """Base class for every reason checkout can be refused."""
+class CheckoutError(ConflictError):
+    """Base class for checkout errors (409 by default)."""
 
 
-class CheckoutNotAllowedError(CheckoutError):
-    """The customer does not exist, is not a customer, or has been deactivated (403)."""
+class CheckoutNotAllowedError(ForbiddenError, CheckoutError):
+    """Customer is not authorized to check out (403)."""
 
 
-class DeliveryAddressRequiredError(CheckoutError):
-    """The customer has no delivery address (422)."""
+class DeliveryAddressRequiredError(BusinessRuleError, CheckoutError):
+    """Customer has no delivery address (422)."""
 
 
 class EmptyCartError(CheckoutError):
-    """The cart has no items (409)."""
+    """Cart is empty (409)."""
 
 
 class CartChangedError(CheckoutError):
-    """The restaurant or an item in the cart is gone, deactivated or unavailable (409)."""
+    """A restaurant or item is no longer orderable (409)."""
 
 
-class InvalidQuantityError(CheckoutError):
-    """A cart line has a quantity outside 1 to 20 (422)."""
-
+class InvalidQuantityError(BusinessRuleError, CheckoutError):
+    """A cart line has an invalid quantity (422)."""
 
 class CheckoutService:
     """Places an order from the signed-in customer's cart."""

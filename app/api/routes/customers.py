@@ -1,19 +1,13 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Path
+from fastapi import APIRouter, Depends, Path
 
 from app.api.dependencies import get_customer_service, require_role
 from app.api.openapi import NOT_ALLOWED, NOT_SIGNED_IN, data_error
-from app.repositories.restaurant_repository import DataAccessError
 from app.schemas.common import ErrorResponse
 from app.schemas.customer import CustomerCreate, CustomerResponse, CustomerUpdate
 from app.schemas.user import User
-from app.services.customer_service import (
-    CustomerAlreadyDeactivatedError,
-    CustomerNotFoundError,
-    CustomerService,
-    EmailAlreadyRegisteredError,
-)
+from app.services.customer_service import CustomerService
 
 router = APIRouter(tags=["customers"])
 
@@ -23,27 +17,30 @@ CUSTOMER_NOT_FOUND = {
     404: {
         "model": ErrorResponse,
         "description": "No customer has this ID (owner and admin IDs count as not found).",
-        "content": {"application/json": {"example": {"detail": "Customer 99 not found"}}},
-    }
+        "content": {"application/json": {"example": {"detail": "Customer 99 not found", "code": "not_found",}}}
+    },
 }
+
 EMAIL_TAKEN = {
     409: {
         "model": ErrorResponse,
         "description": "Another account already uses this email.",
         "content": {
-            "application/json": {"example": {"detail": "An account with this email already exists"}}
-        },
-    }
+            "application/json": {"example": {"detail": "An account with this email already exists", "code": "conflict",}}
+        }
+    },
 }
+
 ALREADY_DEACTIVATED = {
     409: {
         "model": ErrorResponse,
         "description": "The customer is already deactivated.",
         "content": {
-            "application/json": {"example": {"detail": "Customer 6 is already deactivated"}}
-        },
-    }
+            "application/json": {"example": {"detail": "Customer 6 is already deactivated", "code": "conflict",}}
+        }
+    },
 }
+
 
 # Fixed 500 messages: DataAccessError text can quote stored user records, including hashes.
 DATA_ERROR = data_error("Stored user data could not be read or saved.")
@@ -51,10 +48,6 @@ DATA_ERROR = data_error("Stored user data could not be read or saved.")
 
 def _to_response(user: User) -> CustomerResponse:
     return CustomerResponse.model_validate(user.model_dump())
-
-
-def _data_error(exc: DataAccessError) -> HTTPException:
-    return HTTPException(status_code=500, detail="Could not access customer data")
 
 
 @router.post(
@@ -72,12 +65,7 @@ def register_customer(
 
     The new customer can sign in at `POST /auth/login` straight away. Returns `409` if the email is already used, and `422` if `name` is empty, the email is not valid, the password is shorter than 8 characters, or an unknown field (such as `role`) is sent.
     """
-    try:
-        return _to_response(service.register(new))
-    except EmailAlreadyRegisteredError as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
-    except DataAccessError as exc:
-        raise _data_error(exc) from exc
+    return _to_response(service.register(new))
 
 
 @router.get(
@@ -109,10 +97,7 @@ def update_my_profile(
 
     Returns `401` without a valid token, `403` for other roles or a deactivated account, and `422` for an empty `name` or `delivery_address` or any other field (`email`, `role`, `id` and `is_active` cannot be changed here).
     """
-    try:
-        return _to_response(service.update_customer(user.id, changes))
-    except DataAccessError as exc:
-        raise _data_error(exc) from exc
+    return _to_response(service.update_customer(user.id, changes))
 
 
 @router.post(
@@ -129,10 +114,7 @@ def deactivate_my_account(
 
     Afterwards, signing in returns `403` and the same token gets `403` on every protected endpoint, including this one (so calling it twice gives `403`). Returns `401` without a valid token and `403` for other roles.
     """
-    try:
-        return _to_response(service.deactivate_customer(user.id))
-    except DataAccessError as exc:
-        raise _data_error(exc) from exc
+    return _to_response(service.deactivate_customer(user.id))
 
 
 @router.get(
@@ -150,12 +132,7 @@ def get_customer(
 
     Returns `401` without a valid token, `403` for any other role, `404` if no customer has this ID, and `422` if the ID is not an integer.
     """
-    try:
-        return _to_response(service.get_customer(customer_id))
-    except CustomerNotFoundError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except DataAccessError as exc:
-        raise _data_error(exc) from exc
+    return _to_response(service.get_customer(customer_id))
 
 
 @router.post(
@@ -179,11 +156,4 @@ def deactivate_customer(
 
     Returns `401` without a valid token, `403` for any other role, `404` if no customer has this ID, and `409` if the customer is already deactivated.
     """
-    try:
-        return _to_response(service.deactivate_customer(customer_id))
-    except CustomerNotFoundError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except CustomerAlreadyDeactivatedError as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
-    except DataAccessError as exc:
-        raise _data_error(exc) from exc
+    return _to_response(service.deactivate_customer(customer_id))
