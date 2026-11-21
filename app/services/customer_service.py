@@ -1,3 +1,4 @@
+from app.core.errors import ConflictError, ForbiddenError, NotFoundError
 from app.core.security import hash_password
 from app.repositories.user_repository import (
     DuplicateEmailError,
@@ -8,19 +9,19 @@ from app.schemas.customer import CustomerCreate, CustomerUpdate
 from app.schemas.user import User, UserCreateRecord, UserRole, UserUpdate
 
 
-class CustomerNotFoundError(Exception):
-    """Raised when no customer has the given ID (including IDs of owners and admins)."""
+class CustomerNotFoundError(NotFoundError):
+    """Raised when a customer does not exist."""
 
 
-class EmailAlreadyRegisteredError(Exception):
-    """Raised when registering with an email that another account already uses."""
+class EmailAlreadyRegisteredError(ConflictError):
+    """Raised when an email is already registered."""
 
 
-class CustomerAlreadyDeactivatedError(Exception):
-    """Raised when deactivating an account that is already deactivated."""
+class CustomerAlreadyDeactivatedError(ConflictError):
+    """Raised when a customer is already deactivated."""
 
 
-class CustomerNotAllowedError(Exception):
+class CustomerNotAllowedError(ForbiddenError):
     """Raised when the user is not an active customer (deactivated, deleted, or another role)."""
 
 

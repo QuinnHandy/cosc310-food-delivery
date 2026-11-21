@@ -1,12 +1,13 @@
 """Order rules (#95, #96): who may see which orders. Does no file access of its own."""
 
+from app.core.errors import ForbiddenError
 from app.repositories.order_repository import OrderNotFoundError, OrderRepository
 from app.schemas.order import Order
 from app.schemas.user import User, UserRole
 from app.services.customer_service import CustomerService
 
 
-class OrderNotAllowedError(Exception):
+class OrderNotAllowedError(ForbiddenError):
     """Raised when a customer asks for an order that belongs to someone else."""
 
 

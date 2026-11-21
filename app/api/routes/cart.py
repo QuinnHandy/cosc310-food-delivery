@@ -1,22 +1,13 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Path
+from fastapi import APIRouter, Depends, Path
 
 from app.api.dependencies import get_cart_service, require_role
 from app.api.openapi import NOT_ALLOWED, NOT_SIGNED_IN, data_error
-from app.repositories.menu_repository import MenuItemNotFoundError
-from app.repositories.restaurant_repository import DataAccessError
 from app.schemas.cart import CartItemAdd, CartItemUpdate, CartResponse
 from app.schemas.common import ErrorResponse
 from app.schemas.user import User
-from app.services.cart_service import (
-    CartItemNotInCartError,
-    CartService,
-    CustomerNotAllowedError,
-    DifferentRestaurantError,
-    MenuItemUnavailableError,
-    QuantityLimitError,
-)
+from app.services.cart_service import CartService
 
 router = APIRouter(prefix="/cart", tags=["cart"])
 
@@ -26,14 +17,29 @@ MenuItemId = Annotated[int, Path(description="ID of a menu item that is in the c
 CustomerOnly = Annotated[User, Depends(require_role("customer"))]
 
 
+
 def _error(status: int, description: str, example: str) -> dict:
+    codes = {
+        404: "not_found",
+        409: "conflict",
+        422: "business_rule",
+    }
+
     return {
         status: {
             "model": ErrorResponse,
             "description": description,
-            "content": {"application/json": {"example": {"detail": example}}},
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": example,
+                        "code": codes[status],
+                    }
+                }
+            },
         }
     }
+
 
 
 ITEM_NOT_FOUND = _error(404, "No menu item has this ID.", "Menu item 99 not found")
@@ -50,29 +56,13 @@ COMMON = {
 }
 
 
-def _call(action):
-    """Runs a CartService call and turns its errors into HTTP responses."""
-    try:
-        return action()
-    except CustomerNotAllowedError as exc:
-        raise HTTPException(status_code=403, detail=str(exc)) from exc
-    except (MenuItemNotFoundError, CartItemNotInCartError) as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except (MenuItemUnavailableError, DifferentRestaurantError) as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
-    except QuantityLimitError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-    except DataAccessError as exc:
-        raise HTTPException(status_code=500, detail="Could not access cart data") from exc
-
-
 @router.get("", response_model=CartResponse, summary="Get my cart", responses=COMMON)
 def get_cart(customer: CustomerOnly, service: CartService = Depends(get_cart_service)) -> CartResponse:
     """Returns the signed-in customer's active cart, creating an empty one the first time. A customer only ever has one active cart, so repeated calls return the same `id`.
 
     Each line shows the item's **current** name and price; `subtotal`, `delivery_fee` and `total` are calculated by the backend (the fee is 0 for an empty cart). Returns `401` without a valid token and `403` for other roles or a deactivated account.
     """
-    return _call(lambda: service.get_cart(customer))
+    return service.get_cart(customer)
 
 
 @router.post(
@@ -90,7 +80,7 @@ def add_item(
 
     An empty cart takes on the restaurant of its first item; after that, items from another restaurant are refused with `409`. Returns `404` for an unknown item, `409` for an unavailable or deactivated item, and `422` if `quantity` is not a whole number from 1 to 20 (field error list) or the line would go above 20 (`{"detail": "You can have at most 20 of one item in your cart (you already have 18)"}`). A refused request leaves the cart unchanged. There is no price field: prices always come from the menu.
     """
-    return _call(lambda: service.add_item(customer, body.menu_item_id, body.quantity))
+    return service.add_item(customer, body.menu_item_id, body.quantity)
 
 
 @router.patch(
@@ -109,7 +99,7 @@ def set_quantity(
 
     Returns `404` if the item is not in the cart and `422` if `quantity` is not a whole number from 1 to 20.
     """
-    return _call(lambda: service.set_quantity(customer, menu_item_id, body.quantity))
+    return service.set_quantity(customer, menu_item_id, body.quantity)
 
 
 @router.delete(
@@ -127,10 +117,10 @@ def remove_item(
 
     Returns `404` if the item is not in the cart.
     """
-    return _call(lambda: service.remove_item(customer, menu_item_id))
+    return service.remove_item(customer, menu_item_id)
 
 
 @router.delete("/items", response_model=CartResponse, summary="Clear my cart", responses=COMMON)
 def clear_cart(customer: CustomerOnly, service: CartService = Depends(get_cart_service)) -> CartResponse:
     """Removes every item and returns the empty cart (same `id`). Its restaurant is reset, so items from any restaurant can be added afterwards."""
-    return _call(lambda: service.clear(customer))
+    return service.clear(customer)

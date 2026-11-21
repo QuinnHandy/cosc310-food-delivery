@@ -1,14 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 
 from app.api.dependencies import get_auth_service, get_bearer_token
 from app.api.openapi import FORBIDDEN, UNAUTHORIZED, data_error
-from app.repositories.restaurant_repository import DataAccessError
 from app.schemas.auth import LoginRequest, LoginResponse, MessageResponse
-from app.services.auth_service import (
-    AccountDeactivatedError,
-    AuthService,
-    InvalidCredentialsError,
-)
+from app.services.auth_service import AuthService
 
 router = APIRouter()
 
@@ -35,18 +30,7 @@ def login(
 
     Returns `401` with the same message for an unknown email or a wrong password, `403` if the password is right but the account is deactivated, and `422` if `email` or `password` is missing or `password` is empty.
     """
-    try:
-        return service.login(credentials.email, credentials.password)
-    except InvalidCredentialsError as exc:
-        raise HTTPException(
-            status_code=401,
-            detail=str(exc),
-            headers={"WWW-Authenticate": "Bearer"},
-        ) from exc
-    except AccountDeactivatedError as exc:
-        raise HTTPException(status_code=403, detail=str(exc)) from exc
-    except DataAccessError as exc:
-        raise HTTPException(status_code=500, detail="Could not complete sign in") from exc
+    return service.login(credentials.email, credentials.password)
 
 
 @router.post(
@@ -68,14 +52,5 @@ def logout(
 
     Returns `401` if the header is missing or the token is not a current session.
     """
-    try:
-        service.logout(token)
-    except InvalidCredentialsError as exc:
-        raise HTTPException(
-            status_code=401,
-            detail=str(exc),
-            headers={"WWW-Authenticate": "Bearer"},
-        ) from exc
-    except DataAccessError as exc:
-        raise HTTPException(status_code=500, detail="Could not complete sign out") from exc
+    service.logout(token)
     return MessageResponse(message="Signed out")

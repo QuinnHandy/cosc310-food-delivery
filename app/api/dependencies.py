@@ -2,23 +2,20 @@
 
 from collections.abc import Callable
 
-from fastapi import Depends, HTTPException
+from fastapi import Depends
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from app.api.openapi import RestaurantId
 from app.core.config import settings
+from app.core.errors import ForbiddenError, UnauthorizedError
 from app.repositories.cart_repository import CartRepository
 from app.repositories.menu_repository import MenuRepository
 from app.repositories.order_repository import OrderRepository
-from app.repositories.restaurant_repository import DataAccessError, RestaurantRepository
+from app.repositories.restaurant_repository import RestaurantRepository
 from app.repositories.session_repository import SessionRepository
 from app.repositories.user_repository import UserRepository
 from app.schemas.user import User, UserRole
-from app.services.auth_service import (
-    AccountDeactivatedError,
-    AuthService,
-    InvalidCredentialsError,
-)
+from app.services.auth_service import AuthService
 from app.services.cart_service import CartService
 from app.services.checkout_service import CheckoutService
 from app.services.customer_service import CustomerService
@@ -127,39 +124,20 @@ def get_order_service(
 def get_bearer_token(
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
 ) -> str:
-    """Returns the token from the Authorization header, or responds with 401."""
+    """Returns the bearer token or raises UnauthorizedError."""
     if credentials is None or credentials.scheme.lower() != "bearer":
-        raise HTTPException(
-            status_code=401,
-            detail="Not authenticated",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        raise UnauthorizedError("Not authenticated")
+
     return credentials.credentials
+
 
 
 def get_current_user(
     token: str = Depends(get_bearer_token),
     service: AuthService = Depends(get_auth_service),
 ) -> User:
-    """Returns the signed-in user for the `Authorization: Bearer <token>` header.
-
-    Responds with 401 if the header is missing or malformed, or the token is not a current
-    session, and with 403 if the token's user has been deactivated.
-    """
-    try:
-        return service.get_user_for_token(token)
-    except InvalidCredentialsError as exc:
-        raise HTTPException(
-            status_code=401,
-            detail=str(exc),
-            headers={"WWW-Authenticate": "Bearer"},
-        ) from exc
-    except AccountDeactivatedError as exc:
-        raise HTTPException(status_code=403, detail=str(exc)) from exc
-    except DataAccessError as exc:
-        # Fixed message on purpose: DataAccessError text can quote stored user records,
-        # including password hashes.
-        raise HTTPException(status_code=500, detail="Could not verify the sign-in") from exc
+    """Returns the authenticated user for a valid session token."""
+    return service.get_user_for_token(token)
 
 
 def require_role(*roles: UserRole | str) -> Callable[..., User]:
@@ -174,9 +152,7 @@ def require_role(*roles: UserRole | str) -> Callable[..., User]:
 
     def check_role(user: User = Depends(get_current_user)) -> User:
         if user.role not in allowed:
-            raise HTTPException(
-                status_code=403, detail="You do not have permission to do this"
-            )
+            raise ForbiddenError("You do not have permission to do this")
         return user
 
     return check_role
@@ -197,7 +173,5 @@ def require_restaurant_access(
     is_admin = user.role == UserRole.admin
     owns_restaurant = user.role == UserRole.restaurant_owner and user.restaurant_id == restaurant_id
     if not (is_admin or owns_restaurant):
-        raise HTTPException(
-            status_code=403, detail="You do not have permission to change this restaurant"
-        )
+        raise ForbiddenError("You do not have permission to change this restaurant")
     return user

@@ -13,11 +13,13 @@ from collections.abc import Callable, Iterable
 from pathlib import Path
 from typing import Generic, TypeVar
 
+
 from pydantic import BaseModel, ValidationError
 
+from app.core.errors import DataAccessError
 
-class DataAccessError(Exception):
-    """Raised when stored data cannot be read, parsed, validated or written."""
+
+
 
 
 Model = TypeVar("Model", bound=BaseModel)

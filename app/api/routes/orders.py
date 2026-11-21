@@ -1,16 +1,13 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Path
+from fastapi import APIRouter, Depends, Path
 
 from app.api.dependencies import get_order_service, require_role
 from app.api.openapi import NOT_ALLOWED, NOT_SIGNED_IN, data_error
-from app.repositories.order_repository import OrderNotFoundError
-from app.repositories.restaurant_repository import DataAccessError
 from app.schemas.common import ErrorResponse
 from app.schemas.order import Order
 from app.schemas.user import User
-from app.services.customer_service import CustomerNotFoundError
-from app.services.order_service import OrderNotAllowedError, OrderService
+from app.services.order_service import OrderService
 
 router = APIRouter(tags=["orders"])
 
@@ -21,33 +18,36 @@ CUSTOMER_NOT_FOUND = {
     404: {
         "model": ErrorResponse,
         "description": "No customer has this ID (owner and admin IDs count as not found).",
-        "content": {"application/json": {"example": {"detail": "Customer 99 not found"}}},
+        "content": {"application/json": {"example": {"detail": "Customer 99 not found", "code": "not_found",}}},
     }
 }
 ORDER_NOT_FOUND = {
     404: {
         "model": ErrorResponse,
         "description": "No order has this ID.",
-        "content": {"application/json": {"example": {"detail": "Order 99 not found"}}},
+        "content": {"application/json": {"example": {"detail": "Order 99 not found", "code": "not_found",}}},
     }
 }
+
 ORDER_NOT_YOURS = {
     403: {
         "model": ErrorResponse,
-        "description": "The account is deactivated, the role is not allowed (restaurant owners), or the order belongs to another customer.",
+        "description": (
+            "The account is deactivated, the role is not allowed "
+            "(restaurant owners), or the order belongs to another customer."
+        ),
         "content": {
             "application/json": {
-                "example": {"detail": "You do not have permission to view this order"}
+                "example": {
+                    "detail": "You do not have permission to view this order",
+                    "code": "forbidden",
+                }
             }
         },
     }
 }
+
 DATA_ERROR = data_error("Stored order or user data could not be read.")
-
-
-def _data_error(exc: DataAccessError) -> HTTPException:
-    # Fixed message: DataAccessError text can quote stored records.
-    return HTTPException(status_code=500, detail="Could not access order data")
 
 
 # "/customers/me/orders" must stay above "/customers/{customer_id}/orders", or "me" would be
@@ -68,10 +68,7 @@ def list_my_orders(
 
     Returns `401` without a valid token and `403` for other roles or a deactivated account.
     """
-    try:
-        return service.list_my_orders(user)
-    except DataAccessError as exc:
-        raise _data_error(exc) from exc
+    return service.list_my_orders(user)
 
 
 @router.get(
@@ -91,12 +88,7 @@ def list_customer_orders(
 
     Returns `401` without a valid token, `403` for any other role, `404` if no customer has this ID, and `422` if the ID is not an integer.
     """
-    try:
-        return service.list_orders_for_customer(customer_id)
-    except CustomerNotFoundError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except DataAccessError as exc:
-        raise _data_error(exc) from exc
+    return service.list_orders_for_customer(customer_id)
 
 
 @router.get(
@@ -114,11 +106,4 @@ def get_order(
 
     Returns `401` without a valid token, `403` for a restaurant owner, a deactivated account, or a customer asking for another customer's order, `404` if no order has this ID, and `422` if the ID is not an integer.
     """
-    try:
-        return service.get_order(user, order_id)
-    except OrderNotFoundError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except OrderNotAllowedError as exc:
-        raise HTTPException(status_code=403, detail=str(exc)) from exc
-    except DataAccessError as exc:
-        raise _data_error(exc) from exc
+    return service.get_order(user, order_id)

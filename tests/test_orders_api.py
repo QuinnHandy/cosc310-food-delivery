@@ -112,7 +112,10 @@ def test_unreadable_order_data_returns_500_with_a_fixed_message(app_data):
     (app_data.data_dir / "orders.json").write_text("not json", encoding="utf-8")
     response = app_data.client.get("/customers/me/orders", headers=app_data.headers["customer"])
     assert response.status_code == 500
-    assert response.json() == {"detail": "Could not access order data"}
+    assert response.json() == {
+        "detail": "Could not access application data",
+        "code": "data_access_error",
+    }
 
 
 # ---- GET /customers/{customer_id}/orders (admin) ----
@@ -141,8 +144,10 @@ def test_admin_can_see_a_deactivated_customers_orders(app_data):
 def test_unknown_customer_returns_404(app_data, customer_id):
     response = app_data.client.get(f"/customers/{customer_id}/orders", headers=app_data.headers["admin"])
     assert response.status_code == 404
-    assert response.json() == {"detail": f"Customer {customer_id} not found"}
-
+    assert response.json() == {
+        "detail": f"Customer {customer_id} not found",
+        "code": "not_found",
+    }
 
 def test_admin_lookup_with_a_non_integer_id_returns_422(app_data):
     response = app_data.client.get("/customers/abc/orders", headers=app_data.headers["admin"])
@@ -195,8 +200,10 @@ def test_another_customers_order_returns_403(app_data):
     seed_orders(app_data, 5)  # Bob's order
     response = client.get("/orders/1", headers=h["customer"])
     assert response.status_code == 403
-    assert response.json() == {"detail": "You do not have permission to view this order"}
-
+    assert response.json() == {
+        "detail": "You do not have permission to view this order",
+        "code": "forbidden",
+    }
 
 def test_admin_can_view_any_order(app_data):
     client, h = app_data.client, app_data.headers
@@ -211,8 +218,10 @@ def test_admin_can_view_any_order(app_data):
 def test_unknown_order_returns_404(app_data, who):
     response = app_data.client.get("/orders/99", headers=app_data.headers[who])
     assert response.status_code == 404
-    assert response.json() == {"detail": "Order 99 not found"}
-
+    assert response.json() == {
+        "detail": "Order 99 not found",
+        "code": "not_found",
+    }
 
 def test_viewing_an_order_with_no_orders_file_returns_404(app_data):
     (app_data.data_dir / "orders.json").unlink()
@@ -284,4 +293,7 @@ def test_unreadable_order_data_on_view_returns_500_with_a_fixed_message(app_data
     (app_data.data_dir / "orders.json").write_text("not json", encoding="utf-8")
     response = app_data.client.get("/orders/1", headers=app_data.headers["customer"])
     assert response.status_code == 500
-    assert response.json() == {"detail": "Could not access order data"}
+    assert response.json() == {
+        "detail": "Could not access application data",
+        "code": "data_access_error",
+    }
