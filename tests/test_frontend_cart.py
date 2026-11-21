@@ -32,7 +32,7 @@ def test_api_script_has_every_cart_call_with_the_token():
                  'request("PATCH", `/cart/items/${menuItemId}`',
                  'request("DELETE", `/cart/items/${menuItemId}`', 'request("DELETE", "/cart/items"'):
         assert call in script, call
-    cart_section = script[script.index("// ---- Cart"):]
+    cart_section = script[script.index("// ---- Cart"):].split("// ---- Checkout")[0]
     assert cart_section.count("auth: true") == 5
 
 

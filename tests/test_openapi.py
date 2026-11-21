@@ -18,6 +18,8 @@ RESTAURANT_ID_ROUTES = [
     ("patch", "/restaurants/{restaurant_id}"),
     ("get", "/restaurants/{restaurant_id}/menu"),
     ("post", "/restaurants/{restaurant_id}/menu"),
+    ("patch", "/restaurants/{restaurant_id}/menu/items/{item_id}"),
+    ("delete", "/restaurants/{restaurant_id}/menu/items/{item_id}"),
 ]
 
 
@@ -35,6 +37,8 @@ def test_all_endpoints_are_documented():
         ("PATCH", "/restaurants/{restaurant_id}"),
         ("GET", "/restaurants/{restaurant_id}/menu"),
         ("POST", "/restaurants/{restaurant_id}/menu"),
+        ("PATCH", "/restaurants/{restaurant_id}/menu/items/{item_id}"),
+        ("DELETE", "/restaurants/{restaurant_id}/menu/items/{item_id}"),
         ("POST", "/auth/login"),
         ("POST", "/auth/logout"),
         ("POST", "/customers"),
@@ -70,6 +74,9 @@ def test_every_operation_has_summary_and_description(method, path, operation):
 @pytest.mark.parametrize("method, path, operation", OPERATIONS, ids=[f"{m} {p}" for m, p, _ in OPERATIONS])
 def test_every_operation_documents_a_success_response_model(method, path, operation):
     success = next(code for code in operation["responses"] if code.startswith("2"))
+    if success == "204":  # "No Content" has no body, so there is no response model to document
+        assert "content" not in operation["responses"][success]
+        return
     assert "schema" in operation["responses"][success]["content"]["application/json"]
 
 
@@ -140,6 +147,8 @@ PROTECTED_ROUTES = [
     ("post", "/restaurants"),
     ("patch", "/restaurants/{restaurant_id}"),
     ("post", "/restaurants/{restaurant_id}/menu"),
+    ("patch", "/restaurants/{restaurant_id}/menu/items/{item_id}"),
+    ("delete", "/restaurants/{restaurant_id}/menu/items/{item_id}"),
 ]
 PUBLIC_ROUTES = [
     ("get", "/restaurants"),

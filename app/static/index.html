@@ -56,12 +56,22 @@
         </table>
         <p>
             <button type="button" id="cart-clear" hidden>Clear cart</button>
+            <button type="button" id="cart-checkout" hidden>Checkout</button>
         </p>
+        <p id="checkout-status" role="status"></p>
+    </section>
+
+    <section id="order-confirmation" hidden>
+        <h2>Order placed</h2>
+        <div id="order-confirmation-body"></div>
+        <p><a href="/orders">See all my orders</a></p>
     </section>
 
     <script src="/static/api.js"></script>
     <script src="/static/session.js"></script>
     <script src="/static/cart.js"></script>
+    <script src="/static/order-view.js"></script>
+    <script src="/static/checkout.js"></script>
     <script src="/static/app.js"></script>
 </body>
 

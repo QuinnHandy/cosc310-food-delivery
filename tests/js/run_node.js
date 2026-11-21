@@ -5,6 +5,7 @@ const vm = require("vm");
 
 globalThis.print = (...args) => console.log(...args);
 globalThis.quit = (code) => process.exit(code);
+globalThis.readFile = (path) => fs.readFileSync(path, "utf8");
 globalThis.load = (path) => vm.runInThisContext(fs.readFileSync(path, "utf8"), { filename: path });
 
 for (const path of process.argv.slice(2)) load(path);

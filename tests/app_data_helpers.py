@@ -50,6 +50,8 @@ def app_data(tmp_path, monkeypatch) -> AppData:
         if path.name not in ("sessions.json", "carts.json"):
             shutil.copy(path, data_dir / path.name)
     monkeypatch.setattr(settings, "data_dir", data_dir)
+    monkeypatch.setenv("APP_DATA_DIR", str(data_dir))
+    monkeypatch.setattr(settings, "data_dir", data_dir)
 
     sessions = SessionRepository(data_dir / "sessions.json")
     headers = {}

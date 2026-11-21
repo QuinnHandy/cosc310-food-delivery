@@ -15,7 +15,7 @@
 
   // ---- signed out ----
   setPage("/");
-  load("app/static/api.js"); load("app/static/session.js"); load("app/static/cart.js"); load("app/static/app.js");
+  loadPage("app/static/index.html"); load("app/static/api.js"); load("app/static/session.js"); load("app/static/cart.js"); load("app/static/app.js");
   await settle();
   print("signed out");
   check("asks to sign in", document.getElementById("cart-status").textContent === "Sign in as a customer to start a cart.");

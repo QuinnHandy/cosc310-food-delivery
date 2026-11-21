@@ -14,6 +14,25 @@
     <p id="session-bar"></p>
     <p id="account-message" role="status"></p>
 
+    <section id="profile-section" hidden>
+        <h2>Your profile</h2>
+        <p>Email: <span id="profile-email"></span></p>
+        <form id="profile-form">
+            <label>Name:
+                <input type="text" id="profile-name" autocomplete="name">
+            </label>
+            <label>Phone:
+                <input type="tel" id="profile-phone" autocomplete="tel">
+            </label>
+            <label>Delivery address:
+                <input type="text" id="profile-address" autocomplete="street-address">
+            </label>
+            <button type="submit" id="profile-submit">Save</button>
+        </form>
+        <p id="profile-status" role="status"></p>
+        <p><a href="/orders">My orders</a></p>
+    </section>
+
     <section id="signin-section">
         <h2>Sign in</h2>
         <form id="signin-form">
