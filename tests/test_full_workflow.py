@@ -127,3 +127,16 @@ def test_customer_to_order_workflow_survives_restart(client, temp_data_dir):
         assert profile["email"] == email
         assert ok(restarted_client.get(f"/orders/{order_id}", headers=headers)) == order
 
+            # Verify order history survives the restart.
+        history_after = ok(
+            restarted_client.get("/customers/me/orders", headers=headers)
+        )
+        assert [saved["id"] for saved in history_after] == [order_id]
+
+        # Verify the cart remains empty after the restart.
+        cart_after = ok(restarted_client.get("/cart", headers=headers))
+        assert cart_after["items"] == []
+        assert cart_after["total"] == 0
+
+    # Verify no original project JSON files were modified.
+    assert committed_json_snapshot() == before
