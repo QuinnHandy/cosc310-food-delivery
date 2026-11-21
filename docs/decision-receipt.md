@@ -173,3 +173,48 @@ Integration also exposed a real defect in the copied save code. `write_json_atom
 - New repositories (orders, #93) need only their own rules plus a `JsonStore` line.
 - `UserRepository` still has its own copy, because it writes `id` first and #79/#81 were in review. Moving it over (with `dump=`) is a small follow-up.
 - Error messages now come from one place, so they read the same for every data file.
+
+---
+
+# M2.1 Decision Receipt (Quinn Handy): One home for the rules the cart and checkout share
+
+> Draft prepared with the PR for #109, to be confirmed with the team.
+
+- **Date:** 2026-11-20
+- **Status:** Proposed (PR for #109)
+- **Decided by:** Quinn Handy; to be reviewed by the team
+- **Milestone:** M2, Integrated Core System
+- **Issue / PR / tests:** #109 / PR for #109 / `tests/test_shared_ordering_rules.py`
+
+## Weakness found during integration
+The cart (#89–#92) and checkout (#94) were built in parallel, and each wrote its own copy of two rules:
+
+- **"Is this an active customer?"** was `CartService._require_active_customer` and `CheckoutService._require_active_customer`.
+- **"Can this item be ordered?"** was `if not item.is_available or not item.is_active` in `CartService.add_item`, and the same check again in `CheckoutService._current_items`. It also appeared a third time as `item.is_available and item.is_active` in the cart response.
+
+The copies had already drifted. Checkout re-read the customer from storage, but the cart only looked at the `User` object it was handed. Through the service, a customer deactivated after signing in could still add to their cart, even though checkout refused them. We checked this against `main` at `5cf3b3e`: `add_item` with a stale user succeeded after `is_active` was set to false. The checkout route also had to catch two different exceptions for the same rule (`CheckoutNotAllowedError` and the cart's `CustomerNotAllowedError`).
+
+## Options considered
+1. **Put each rule on the service that owns the data (chosen):** `CustomerService.require_active_customer` and `MenuService.get_orderable_item` / `is_orderable`. The cart and checkout get those services through their constructors.
+2. **A separate `rules.py` module of free functions:** less wiring, but the customer check needs to read storage. That would mean passing repositories into plain functions, or the rule ending up somewhere other than the service that owns customers.
+3. **Leave the copies and add tests for both:** the least change, but the next rule change (e.g. "restaurant closed") would have to be made in two places again.
+
+## Decision
+- `CustomerService.require_active_customer(user)` re-reads the account and raises `CustomerNotAllowedError` for another role, an unknown account or a deactivated one. The exception moved to `customer_service.py`.
+- `MenuService.is_orderable(item)` is the single definition of orderable (active and available). `MenuService.get_orderable_item(id)` raises `MenuItemNotFoundError` or `MenuItemUnavailableError`. The exception moved to `menu_service.py`.
+- `CartService(cart_repository, menu_service, customer_service, fee)` and `CheckoutService(customer_service, cart_service, menu_service, ...)` call those methods instead of their own copies. Checkout still turns the errors into `CheckoutNotAllowedError` / `CartChangedError`, so every checkout refusal stays a `CheckoutError` and the API responses (403/409) don't change.
+- `cart_service.py` still re-exports both exceptions, so the routes and tests that import them from there keep working.
+
+## Evidence
+- **Behaviour unchanged:** all 648 existing tests passed after the refactor. The only test edits were the new constructor arguments in `test_cart_service.py` and `test_checkout_service.py`.
+- **New tests:** `tests/test_shared_ordering_rules.py` has 19 tests:
+  - each shared method on its own
+  - the cart and checkout refusing an unavailable item, a deactivated item, a customer deactivated after sign-in and an owner, **with the same message**
+  - a regression test for the stale deactivated customer
+  - a check that `cart_service.py` and `checkout_service.py` no longer contain their own `is_available` / `.is_active` / role checks
+- **Full suite:** 667 passed.
+
+## Consequences
+- A rule change, such as adding "restaurant is closed", now happens in one method, and both the cart and checkout pick it up.
+- Cart operations now re-read the customer each time, which is one extra small file read per request. That's acceptable for our JSON storage, and it's what makes the stale-user case safe.
+- `CartService` now depends on two more services. The wiring lives in `app/api/dependencies.py`, from #106, so the routes didn't change.

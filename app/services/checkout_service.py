@@ -10,6 +10,11 @@ The order of work matters:
    from prices the client or the cart supplied.
 3. Save the order first, then mark the cart `checked_out`. If saving the order fails, the
    cart is left exactly as it was, so the customer can try again.
+
+Rules shared with the cart are not re-implemented here (#109): the customer check is
+CustomerService.require_active_customer and the item check is MenuService.get_orderable_item.
+This service only turns their errors into checkout errors, so every reason checkout is
+refused is still a CheckoutError.
 """
 
 from decimal import Decimal
@@ -19,7 +24,7 @@ from app.core.errors import (
     ConflictError,
     ForbiddenError,
 )
-from app.repositories.menu_repository import MenuItemNotFoundError, MenuRepository
+from app.repositories.menu_repository import MenuItemNotFoundError
 from app.repositories.order_repository import OrderRepository
 from app.repositories.restaurant_repository import (
     RestaurantNotFoundError,
@@ -28,9 +33,10 @@ from app.repositories.restaurant_repository import (
 from app.schemas.cart import MAX_QUANTITY, Cart
 from app.schemas.menu import MenuItem
 from app.schemas.order import Order, OrderDraft, OrderLine
-from app.schemas.user import User, UserRole
+from app.schemas.user import User
 from app.services.cart_service import CartService
-from app.services.customer_service import CustomerNotFoundError, CustomerService
+from app.services.customer_service import CustomerNotAllowedError, CustomerService
+from app.services.menu_service import MenuItemUnavailableError, MenuService
 from app.services.pricing import price_lines
 
 
@@ -64,14 +70,14 @@ class CheckoutService:
         self,
         customer_service: CustomerService,
         cart_service: CartService,
-        menu_repository: MenuRepository,
+        menu_service: MenuService,
         restaurant_repository: RestaurantRepository,
         order_repository: OrderRepository,
         delivery_fee: Decimal,
     ) -> None:
         self._customers = customer_service
         self._carts = cart_service
-        self._menus = menu_repository
+        self._menus = menu_service
         self._restaurants = restaurant_repository
         self._orders = order_repository
         self._delivery_fee = delivery_fee
@@ -110,16 +116,11 @@ class CheckoutService:
     # ---- steps ----
 
     def _require_active_customer(self, user: User) -> User:
-        """Re-reads the customer so a change since sign-in (such as deactivation) is respected."""
-        if user.role != UserRole.customer:
-            raise CheckoutNotAllowedError("Only customers can check out")
+        """The shared customer rule, reported as a checkout error."""
         try:
-            customer = self._customers.get_customer(user.id)
-        except CustomerNotFoundError as exc:
-            raise CheckoutNotAllowedError("Customer account not found") from exc
-        if not customer.is_active:
-            raise CheckoutNotAllowedError("This account has been deactivated")
-        return customer
+            return self._customers.require_active_customer(user)
+        except CustomerNotAllowedError as exc:
+            raise CheckoutNotAllowedError(str(exc)) from exc
 
     def _current_items(self, cart: Cart) -> list[MenuItem]:
         """The current menu item for every cart line, checking each is still orderable."""
@@ -130,15 +131,15 @@ class CheckoutService:
                     f"Quantity for menu item {line.menu_item_id} must be 1 to {MAX_QUANTITY}"
                 )
             try:
-                item = self._menus.get_item(line.menu_item_id)
+                item = self._menus.get_orderable_item(line.menu_item_id)
             except MenuItemNotFoundError as exc:
                 raise CartChangedError(
                     f"Menu item {line.menu_item_id} no longer exists. Remove it from your cart."
                 ) from exc
+            except MenuItemUnavailableError as exc:
+                raise CartChangedError(str(exc)) from exc
             if item.restaurant_id != cart.restaurant_id:
                 raise CartChangedError(f"{item.name} no longer belongs to this restaurant")
-            if not item.is_active or not item.is_available:
-                raise CartChangedError(f"{item.name} is not available to order right now")
             items.append(item)
         return items
 

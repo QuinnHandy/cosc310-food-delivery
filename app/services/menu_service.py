@@ -1,5 +1,10 @@
+from app.core.errors import ConflictError
 from app.repositories.menu_repository import MenuRepository
 from app.schemas.menu import Menu, MenuItem, MenuItemCreate, MenuItemUpdate
+
+
+class MenuItemUnavailableError(ConflictError):
+    """Raised when an item exists but cannot be ordered (unavailable or deactivated)."""
 
 
 class MenuService:
@@ -17,6 +22,31 @@ class MenuService:
         menu = self._repository.get_menu(restaurant_id)
         visible = [item for item in menu.items if item.is_active]
         return Menu(restaurant_id=menu.restaurant_id, items=visible)
+
+    # ---- ordering rules (#109): the one place that decides whether an item can be ordered ----
+
+    @staticmethod
+    def is_orderable(item: MenuItem) -> bool:
+        """True when customers can order the item: it is not deactivated and is available."""
+        return item.is_active and item.is_available
+
+    def get_item(self, item_id: int) -> MenuItem:
+        """Any stored item, including unavailable and deactivated ones (used for pricing).
+
+        Raises MenuItemNotFoundError.
+        """
+        return self._repository.get_item(item_id)
+
+    def get_orderable_item(self, item_id: int) -> MenuItem:
+        """The current item, if it can be ordered right now. Used by both the cart and checkout.
+
+        Raises MenuItemNotFoundError, or MenuItemUnavailableError if it is unavailable or
+        deactivated.
+        """
+        item = self._repository.get_item(item_id)
+        if not self.is_orderable(item):
+            raise MenuItemUnavailableError(f"{item.name} is not available to order right now")
+        return item
 
     def add_menu_item(self, restaurant_id: int, new: MenuItemCreate) -> MenuItem:
         """Raises RestaurantNotFoundError if no restaurant has this ID."""

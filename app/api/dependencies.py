@@ -88,22 +88,23 @@ def get_customer_service(
 
 def get_cart_service(
     cart_repository: CartRepository = Depends(get_cart_repository),
-    menu_repository: MenuRepository = Depends(get_menu_repository),
+    menu_service: MenuService = Depends(get_menu_service),
+    customer_service: CustomerService = Depends(get_customer_service),
 ) -> CartService:
-    return CartService(cart_repository, menu_repository, settings.delivery_fee)
+    return CartService(cart_repository, menu_service, customer_service, settings.delivery_fee)
 
 
 def get_checkout_service(
     customer_service: CustomerService = Depends(get_customer_service),
     cart_service: CartService = Depends(get_cart_service),
-    menu_repository: MenuRepository = Depends(get_menu_repository),
+    menu_service: MenuService = Depends(get_menu_service),
     restaurant_repository: RestaurantRepository = Depends(get_restaurant_repository),
     order_repository: OrderRepository = Depends(get_order_repository),
 ) -> CheckoutService:
     return CheckoutService(
         customer_service,
         cart_service,
-        menu_repository,
+        menu_service,
         restaurant_repository,
         order_repository,
         settings.delivery_fee,
