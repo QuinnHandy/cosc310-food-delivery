@@ -75,7 +75,14 @@ def test_patch_cannot_deactivate_an_item(api):
     assert 1 in menu_ids(client)
 
 
-@pytest.mark.parametrize("body", [{"price": 0}, {"price": -1}, {"price": "cheap"}, {"is_available": "maybe"}, {"name": ""}])
+@pytest.mark.parametrize(
+    "body",
+    [
+        {"price": 0}, {"price": -1}, {"price": "cheap"}, {"is_available": "maybe"}, {"name": ""},
+        {"price": None}, {"name": None}, {"description": None}, {"category": None},
+        {"image_url": None}, {"is_available": None},
+    ],
+)
 def test_invalid_patch_returns_422_and_changes_nothing(app_data, body):
     client, h = app_data.client, app_data.headers
     before = stored_items(app_data)
