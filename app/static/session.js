@@ -33,7 +33,14 @@ function renderSessionBar() {
     }
     window.location.href = "/account?message=" + encodeURIComponent("You have signed out.");
   });
-  bar.append(account, " ", signOut);
+  bar.append(account, " ");
+  if (session.role === "customer") {
+    const orders = document.createElement("a");
+    orders.href = "/orders";
+    orders.textContent = "My orders";
+    bar.append(orders, " ");
+  }
+  bar.append(signOut);
 }
 
 renderSessionBar();

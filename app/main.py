@@ -31,6 +31,10 @@ def owner_page():
 def account_page():
     return FileResponse(STATIC_DIR / "account.html")
 
+@app.get("/orders", include_in_schema=False)
+def orders_page():
+    return FileResponse(STATIC_DIR / "orders.html")
+
 @app.get("/health", response_model=HealthResponse, summary="Health check")
 def health():
     """Returns `{"status": "ok"}` when the API is running. Has no parameters and no error responses."""
